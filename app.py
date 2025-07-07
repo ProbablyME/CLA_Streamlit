@@ -626,6 +626,11 @@ def load_players():
     db = get_db()
     return list(db.CLA_Players.find())
 
+@st.cache_data(ttl=300)
+def load_scrims():
+    db = get_db()
+    return list(db.CLA_Scrims.find())
+
 # Format time difference for readability
 def format_time_diff(seconds):
     minutes = seconds // 60
@@ -650,11 +655,18 @@ with st.sidebar:
         __import__('base64').b64encode(open("logo.png", "rb").read()).decode() if __import__('os').path.exists("logo.png") else ""
     ), unsafe_allow_html=True)
     
-    # Modern navigation
-    page = st.radio(
-        "Navigation",
-        ["Scrims", "Team Stats", "Player Stats", "Champion Analysis"]
+    # Modern navigation - Main pages
+    main_page = st.radio(
+        "Main Navigation",
+        ["Officials", "Scrims"]
     )
+    
+    # Sub-navigation for Officials page
+    if main_page == "Officials":
+        page = st.radio(
+            "Officials Analysis",
+            ["Officials", "Team Stats", "Player Stats", "Champion Analysis"]
+        )
     
     # Add some stats in sidebar
     st.markdown("---")
@@ -676,11 +688,6 @@ with st.sidebar:
             </p>
         </div>
         """, unsafe_allow_html=True)
-
-# Load data
-games = load_games()
-players_db = load_players()
-champion_data, ddragon_version, champ_mapping = get_champion_data()
 
 # Helper functions for the enhanced Champion Analysis page
 def create_champion_card(champ_data, role_color, champion_data, champ_mapping, ddragon_version):
@@ -764,833 +771,1001 @@ def create_champion_row(champ_data, role_color, champion_data, champ_mapping, dd
     with col4:
         st.markdown(f"**{wins}W - {losses}L** ({games}g)")
 
-def create_threat_card(champ_data, threat_color, champion_data, champ_mapping, ddragon_version):
-    """Create a simple threat card with icon and info in dark area"""
-    champion_name = champ_data["champion"]
-    win_rate = champ_data["win_rate"]
-    games = champ_data["games"]
-    wins = champ_data["wins"]
-    losses = champ_data["losses"]
-    
-    champ_key = find_champion_key(champion_name, champion_data, champ_mapping)
-    
-    # Determine threat level
-    if win_rate >= 70:
-        threat_level = "HIGH THREAT"
-        threat_icon = "🔥"
-    elif win_rate >= 50:
-        threat_level = "MEDIUM THREAT"
-        threat_icon = "⚠️"
-    else:
-        threat_level = "FAVORABLE"
-        threat_icon = "✅"
-    
-    # Champion image at the top
-    if champ_key:
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.image(
-                f"https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/champion/{champ_key}.png",
-                width=60
-            )
-    else:
-        st.markdown(f"""
-        <div style="display: flex; justify-content: center; margin-bottom: 0.75rem;">
-            <div style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid {threat_color}; 
-                        background: #374151; display: flex; align-items: center; justify-content: center;">
-                <span style="color: white;">?</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # All info in the dark background area
-    st.markdown(f"""
-    <div style="background: rgba(0, 0, 0, 0.6); border-radius: 8px; padding: 1.25rem; margin: 0.75rem 0; text-align: center;">
-        <!-- Champion name -->
-        <h4 style="color: {threat_color}; margin: 0 0 0.5rem 0; font-weight: 700;">
-            {champion_name}
-        </h4>
-        
-        <!-- Threat level -->
-        <div style="color: {threat_color}; font-size: 0.7rem; text-transform: uppercase; 
-                    margin-bottom: 0.75rem; font-weight: 600;">
-            {threat_icon} {threat_level}
-        </div>
-        
-        <!-- Win rate -->
-        <div style="font-size: 1.5rem; font-weight: 700; color: {threat_color}; margin-bottom: 0.25rem;">
-            {win_rate:.1f}%
-        </div>
-        <div style="font-size: 0.7rem; color: #94a3b8; font-weight: 500;">
-            {wins}W-{losses}L ({games}g)
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-def create_detailed_opponent_table(opponent_data, champion_data, champ_mapping, ddragon_version):
-    """Create a detailed table view of all opponent champions"""
-    # Display as rows like the GMB "View All Champions" section
-    for champ_data in opponent_data:
-        create_champion_row(champ_data, "#64748b", champion_data, champ_mapping, ddragon_version)
-
-def create_threat_layout_with_separators(threat_data, threat_color, champion_data, champ_mapping, ddragon_version, max_display=4):
-    """Create threat champion layout with vertical separators"""
-    num_to_show = min(max_display, len(threat_data))
-    
-    if num_to_show == 1:
-        cols = st.columns([1, 2, 1])
-        with cols[1]:
-            create_champion_card(threat_data[0], threat_color, champion_data, champ_mapping, ddragon_version)
-    elif num_to_show == 2:
-        cols = st.columns([2, 1, 2])
-        with cols[0]:
-            create_champion_card(threat_data[0], threat_color, champion_data, champ_mapping, ddragon_version)
-        with cols[1]:
-            st.markdown("", unsafe_allow_html=True)  # Separator space
-        with cols[2]:
-            create_champion_card(threat_data[1], threat_color, champion_data, champ_mapping, ddragon_version)
-    elif num_to_show == 3:
-        cols = st.columns([3, 1, 3, 1, 3])
-        with cols[0]:
-            create_champion_card(threat_data[0], threat_color, champion_data, champ_mapping, ddragon_version)
-        with cols[1]:
-            st.markdown('<div style="border-left: 2px solid #475569; height: 400px; margin: 2rem 0;"></div>', unsafe_allow_html=True)
-        with cols[2]:
-            create_champion_card(threat_data[1], threat_color, champion_data, champ_mapping, ddragon_version)
-        with cols[3]:
-            st.markdown('<div style="border-left: 2px solid #475569; height: 400px; margin: 2rem 0;"></div>', unsafe_allow_html=True)
-        with cols[4]:
-            create_champion_card(threat_data[2], threat_color, champion_data, champ_mapping, ddragon_version)
-    elif num_to_show == 4:
-        cols = st.columns([2, 1, 2, 1, 2, 1, 2])
-        for i in range(4):
-            col_index = i * 2  # 0, 2, 4, 6
-            with cols[col_index]:
-                create_champion_card(threat_data[i], threat_color, champion_data, champ_mapping, ddragon_version)
-            # Add separator after first three champions
-            if i < 3:
-                with cols[col_index + 1]:
-                    st.markdown('<div style="border-left: 2px solid #475569; height: 400px; margin: 2rem 0;"></div>', unsafe_allow_html=True)
+# Load data
+games = load_games()
+players_db = load_players()
+champion_data, ddragon_version, champ_mapping = get_champion_data()
 
 # Page routing based on selection
-if page == "Scrims":
-    st.title("Scrims Overview")
-    
-    if not games:
-        st.warning("No games found in database. Please import game data first.")
-    else:
-        # Create games table for listing
-        games_df = pd.DataFrame([
-            {
-                "id": str(game.get("_id")),
-                "date": game.get("date"),
-                "opponent": game.get("opponent_team", {}).get("name", "Unknown"),
-                "result": "WIN" if game.get("win") else "LOSS",
-                "side": game.get("Caldya_side", "").upper(),  # Utilise Caldya_side
-                "duration": game.get("game_duration", "0:00")
-            } for game in games
-        ])
+if main_page == "Officials":
+    # Use original page routing from the provided code
+    if page == "Officials":
+        st.title("Officials Overview")
         
-        # Enhanced filtering section
-        with st.container():
-
-            st.subheader("Find a Scrim")
-            
-            # Extract all champions for filtering
-            all_caldya_champions = set()
-            all_enemy_champions = set()
-            caldya_player_names = ["Nille", "SPOOKY", "Nafkelah", "Soldier", "Steeelback"]
-            
-            for game in games:
-                caldya_team_id = game.get("Caldya_id")  # Utilise Caldya_id de la nouvelle structure
-                if "final_items" in game:
-                    for player, item_data in game["final_items"].items():
-                        champion = item_data.get("champion", "")
-                        team_id = item_data.get("team_id")
-                        
-                        if champion:  # Only add if champion name exists
-                            # Check if this is a Caldya player
-                            is_caldya_player = any(player.upper() == caldya_name.upper() for caldya_name in caldya_player_names)
-                            
-                            if is_caldya_player and team_id == caldya_team_id:
-                                all_caldya_champions.add(champion)
-                            elif team_id != caldya_team_id:
-                                all_enemy_champions.add(champion)
-            
-            # Sort champion lists
-            caldya_champions_list = ["All"] + sorted(list(all_caldya_champions))
-            enemy_champions_list = ["All"] + sorted(list(all_enemy_champions))
-            
-            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
-            
-            with col1:
-                # Date filtering
-                min_date = games_df["date"].min() if not games_df.empty else ""
-                max_date = games_df["date"].max() if not games_df.empty else ""
-                date_range = st.date_input("Date Range", 
-                                           value=[min_date, max_date] if min_date and max_date else None,
-                                           key="date_filter")
-                
-                # Result filter
-                result_filter = st.radio("Result", ["All", "WIN", "LOSS"])
-            
-            with col2:
-                # Side filter
-                side_filter = st.radio("Side", ["All", "BLUE", "RED"])
-                
-                # Opponent filter
-                opponents = ["All"] + sorted(list(set(games_df["opponent"].tolist())))
-                opponent_filter = st.selectbox("Opponent", opponents)
-            
-            with col3:
-                # Champion filters
-                st.markdown("**Champion Filters**")
-                allied_champion_filter = st.selectbox("Allied Champion", caldya_champions_list, 
-                                                     help="Filter games where Caldya played this champion")
-                enemy_champion_filter = st.selectbox("Enemy Champion", enemy_champions_list,
-                                                    help="Filter games where opponent played this champion")
-            
-            with col4:
-                # Apply filters
-                filtered_games = games_df.copy()
-                
-                # Date filter
-                if len(date_range) == 2:
-                    try:
-                        start_date, end_date = date_range
-                        filtered_games = filtered_games[(filtered_games["date"] >= str(start_date)) & 
-                                                       (filtered_games["date"] <= str(end_date))]
-                    except:
-                        pass
-                
-                # Basic filters
-                if result_filter != "All":
-                    filtered_games = filtered_games[filtered_games["result"] == result_filter]
-                if side_filter != "All":
-                    filtered_games = filtered_games[filtered_games["side"] == side_filter]
-                if opponent_filter != "All":
-                    filtered_games = filtered_games[filtered_games["opponent"] == opponent_filter]
-                
-                # Champion filters - need to check actual game data
-                if allied_champion_filter != "All" or enemy_champion_filter != "All":
-                    valid_game_ids = []
-                    
-                    for game in games:
-                        game_id = str(game.get("_id"))
-                        caldya_team_id = game.get("Caldya_id")  # Utilise Caldya_id
-                        
-                        # Check if this game matches current filters (before champion filter)
-                        if game_id not in filtered_games["id"].values:
-                            continue
-                        
-                        caldya_champions_in_game = set()
-                        enemy_champions_in_game = set()
-                        
-                        if "final_items" in game:
-                            for player, item_data in game["final_items"].items():
-                                champion = item_data.get("champion", "")
-                                team_id = item_data.get("team_id")
-                                
-                                if champion:
-                                    is_caldya_player = any(player.upper() == caldya_name.upper() for caldya_name in caldya_player_names)
-                                    
-                                    if is_caldya_player and team_id == caldya_team_id:
-                                        caldya_champions_in_game.add(champion)
-                                    elif team_id != caldya_team_id:
-                                        enemy_champions_in_game.add(champion)
-                        
-                        # Check champion filters
-                        allied_match = (allied_champion_filter == "All" or 
-                                      allied_champion_filter in caldya_champions_in_game)
-                        enemy_match = (enemy_champion_filter == "All" or 
-                                     enemy_champion_filter in enemy_champions_in_game)
-                        
-                        if allied_match and enemy_match:
-                            valid_game_ids.append(game_id)
-                    
-                    # Filter dataframe to only include games that match champion criteria
-                    filtered_games = filtered_games[filtered_games["id"].isin(valid_game_ids)]
-                
-                # Game selection
-                if not filtered_games.empty:
-                    game_options = [f"{row['date']} | {row['opponent']} ({row['result']}, {row['side']} side)" 
-                                  for _, row in filtered_games.iterrows()]
-                    
-                    selected_index = st.selectbox("Select a Scrim", 
-                                                range(len(game_options)),
-                                                format_func=lambda i: game_options[i])
-                    
-                    selected_id = filtered_games.iloc[selected_index]["id"]
-                    
-                    # Display selection summary with champion info
-                    selected_row = filtered_games.iloc[selected_index]
-                    result_color = "#10b981" if selected_row['result'] == "WIN" else "#ef4444"
-                    
-                    # Add champion info to summary if filters are active
-                    champion_info = ""
-                    if allied_champion_filter != "All":
-                        champion_info += f" • Allied: {allied_champion_filter}"
-                    if enemy_champion_filter != "All":
-                        champion_info += f" • Enemy: {enemy_champion_filter}"
-                    
-                    st.markdown(f"""
-                    <div style="background: rgba(51, 65, 85, 0.3); padding: 1rem; border-radius: 8px; margin-top: 1rem; border-left: 4px solid {result_color};">
-                        <strong>Selected:</strong> {selected_row['date']} vs {selected_row['opponent']} • 
-                        <span style="color: {result_color}; font-weight: 600;">{selected_row['result']}</span> • 
-                        {selected_row['side']} side • Duration: {selected_row['duration']}{champion_info}
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.warning("No scrims match the selected filters.")
-                    selected_id = None
-        
-        # Game details section
-        if selected_id:
-            game = next((g for g in games if str(g.get("_id")) == selected_id), None)
-            
-            if game:
-                st.header("Game Details")
-                
-                # Game header with enhanced styling
-                result_color = "#10b981" if game.get("win") else "#ef4444"
-                result_text = "VICTORY" if game.get("win") else "DEFEAT"
-                
-                st.markdown(f"""
-                <div class="modern-card" style="text-align: center; padding: 2rem;">
-                    <h2 style="margin: 0; color: {result_color}; font-size: 2.5rem; text-shadow: 0 0 20px {result_color}50;">
-                        {result_text}
-                    </h2>
-                    <h3 style="margin: 0.5rem 0 0 0; color: #94a3b8;">
-                        vs {game.get('opponent_team', {}).get('name', 'Unknown')}
-                    </h3>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Game metadata with modern cards
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    styled_metric("Date", game.get('date'))
-                    styled_metric("Duration", game.get('game_duration', '0:00'))
-                
-                with col2:
-                    styled_metric("Side", game.get('Caldya_side', '').upper())
-                    # Simplified first blood - just show team (no time)
-                    first_blood = game.get('first_blood', {})
-                    if first_blood.get('team'):
-                        fb_team = "Caldya" if first_blood.get('team') == "NAFKELAH_TEAM" else "Opponent"
-                        styled_metric("First Blood", fb_team)
-                
-                with col3:
-                    # Objectives with enhanced display
-                    caldya_objectives = game.get('objectives', {}).get('blue_team' if game.get('Caldya_side') == 'blue' else 'red_team', {}).get('objectives', {})
-                    enemy_objectives = game.get('objectives', {}).get('red_team' if game.get('Caldya_side') == 'blue' else 'blue_team', {}).get('objectives', {})
-                    
-                    dragons_caldya = caldya_objectives.get('dragon', {}).get('kills', 0)
-                    dragons_enemy = enemy_objectives.get('dragon', {}).get('kills', 0)
-                    styled_metric("Dragons", f"{dragons_caldya} - {dragons_enemy}")
-                    
-                    barons_caldya = caldya_objectives.get('baron', {}).get('kills', 0)
-                    barons_enemy = enemy_objectives.get('baron', {}).get('kills', 0)
-                    styled_metric("Barons", f"{barons_caldya} - {barons_enemy}")
-                
-
-                
-                # Enhanced Final Items Section with new layout: Champion -> Items -> Name/KDA under champion
-                st.header("Scoreboard")
-                if "final_items" in game and "player_data" in game:
-                    caldya_team_id = game.get("Caldya_id")
-                    caldya_player_items = []
-                    opponent_player_items = []
-                    
-                    for player, item_data in game["final_items"].items():
-                        # Get player KDA from game data
-                        player_stats = game["player_data"].get(player, {})
-                        kda = player_stats.get("kda", "0/0/0")
-                        
-                        if item_data.get("team_id") == caldya_team_id:
-                            caldya_player_items.append((player, item_data, kda))
-                        else:
-                            opponent_player_items.append((player, item_data, kda))
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.subheader("Caldya Final Items")
-                        
-                        for player, item_data, kda in caldya_player_items:
-                            champ_name = item_data.get("champion")
-                            champ_key = find_champion_key(champ_name, champion_data, champ_mapping)
-                            
-                            st.markdown('<div class="player-items-row">', unsafe_allow_html=True)
-                            
-                            # Layout: Champion section (icon + name/KDA below) | Items section
-                            champion_col, items_col = st.columns([1, 4])
-                            
-                            with champion_col:
-                                # Champion icon
-                                if champ_key:
-                                    st.image(
-                                        f"https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/champion/{champ_key}.png", 
-                                        width=60
-                                    )
-                                
-                                # Player info under champion
-                                st.markdown(f"""
-                                <div class="player-info-section">
-                                    <div class="player-name">{player}</div>
-                                    <div class="player-score">{kda}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                            with items_col:
-                                # Items right after champion
-                                items_html = '<div class="items-section">'
-                                trinket_id = item_data.get("trinket", 0)
-                                player_items = item_data.get("items", [])
-                                
-                                # Si le dernier item est égal au trinket, ne pas l'afficher dans les items
-                                if player_items and trinket_id > 0 and len(player_items) > 0 and player_items[-1] == trinket_id:
-                                    player_items = player_items[:-1]  # Enlever le dernier item
-                                
-                                for i, item_id in enumerate(player_items):
-                                    if i < 6 and item_id > 0:
-                                        items_html += f'<img src="https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/item/{item_id}.png" width="35" style="margin:2px; border-radius:4px; border:1px solid var(--border);" />'
-                                
-                                # Afficher le trinket avec un style spécial
-                                if trinket_id > 0:
-                                    items_html += f'<img src="https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/item/{trinket_id}.png" width="35" style="margin:2px 2px 2px 8px; border-radius:4px; border:2px solid var(--accent-primary);" />'
-                                
-                                items_html += '</div>'
-                                st.markdown(items_html, unsafe_allow_html=True)
-                            
-                            st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    with col2:
-                        st.subheader("Opponent Final Items")
-                        
-                        for player, item_data, kda in opponent_player_items:
-                            champ_name = item_data.get("champion")
-                            champ_key = find_champion_key(champ_name, champion_data, champ_mapping)
-                            
-                            st.markdown('<div class="player-items-row">', unsafe_allow_html=True)
-                            
-                            # Layout: Champion section (icon + name/KDA below) | Items section
-                            champion_col, items_col = st.columns([1, 4])
-                            
-                            with champion_col:
-                                # Champion icon
-                                if champ_key:
-                                    st.image(
-                                        f"https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/champion/{champ_key}.png", 
-                                        width=60
-                                    )
-                                
-                                # Player info under champion
-                                st.markdown(f"""
-                                <div class="player-info-section">
-                                    <div class="player-name" style="color: var(--danger);">{player}</div>
-                                    <div class="player-score">{kda}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                            with items_col:
-                                # Items right after champion
-                                items_html = '<div class="items-section">'
-                                trinket_id = item_data.get("trinket", 0)
-                                player_items = item_data.get("items", [])
-                                
-                                # Si le dernier item est égal au trinket, ne pas l'afficher dans les items
-                                if player_items and trinket_id > 0 and len(player_items) > 0 and player_items[-1] == trinket_id:
-                                    player_items = player_items[:-1]  # Enlever le dernier item
-                                
-                                for i, item_id in enumerate(player_items):
-                                    if i < 6 and item_id > 0:
-                                        items_html += f'<img src="https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/item/{item_id}.png" width="35" style="margin:2px; border-radius:4px; border:1px solid var(--border);" />'
-                                
-                                # Afficher le trinket avec un style spécial
-                                if trinket_id > 0:
-                                    items_html += f'<img src="https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/item/{trinket_id}.png" width="35" style="margin:2px 2px 2px 8px; border-radius:4px; border:2px solid var(--danger);" />'
-                                
-                                items_html += '</div>'
-                                st.markdown(items_html, unsafe_allow_html=True)
-                            
-                            st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Enhanced Player Performance
-                st.header("Player Performance")
-                
-                if "player_data" in game and "player_positions" in game:
-                    caldya_player_names = ["Nille", "SPOOKY", "Nafkelah", "Soldier", "Steeelback"]
-                    caldya_players = []
-                    opponent_players = []
-                    
-                    for player, stats in game["player_data"].items():
-                        player_data = {
-                            "Player": player,
-                            "KDA": stats.get("kda", "0/0/0"),
-                            "Gold@15": stats.get("gold_15min", 0),
-                            "CS@15": stats.get("cs_15min", 0),
-                            "Gold Diff@15": stats.get("gold_diff_15min", 0),
-                            "CS Diff@15": stats.get("cs_diff_15min", 0)
-                        }
-                        
-                        if player in caldya_player_names or player.upper() in [p.upper() for p in caldya_player_names]:
-                            caldya_players.append(player_data)
-                        else:
-                            opponent_players.append(player_data)
-                    
-                    column_config = {
-                        "Gold Diff@15": st.column_config.NumberColumn(
-                            "Gold Diff@15",
-                            help="Gold difference at 15 minutes",
-                            format="%d"
-                        ),
-                        "CS Diff@15": st.column_config.NumberColumn(
-                            "CS Diff@15",
-                            help="CS difference at 15 minutes",
-                            format="%.1f"
-                        ),
-                    }
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        if caldya_players:
-                            st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
-                            st.subheader("Caldya Players")
-                            caldya_df = pd.DataFrame(caldya_players)
-                            st.dataframe(
-                                caldya_df,
-                                column_config=column_config,
-                                hide_index=True,
-                                use_container_width=True
-                            )
-                            st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    with col2:
-                        if opponent_players:
-                            st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
-                            st.subheader("Opponent Players")
-                            opponent_df = pd.DataFrame(opponent_players)
-                            st.dataframe(
-                                opponent_df,
-                                column_config=column_config,
-                                hide_index=True,
-                                use_container_width=True
-                            )
-                            st.markdown('</div>', unsafe_allow_html=True)
-
-elif page == "Team Stats":
-    st.title("Team Statistics")
-    
-    if not games:
-        st.warning("No games found in database. Please import game data first.")
-    else:
-        # Calculate stats
-        total_games = len(games)
-        wins = sum(1 for game in games if game.get("win"))
-        losses = total_games - wins
-        win_rate = (wins / total_games * 100) if total_games > 0 else 0
-        
-        # Side stats
-        blue_games = sum(1 for game in games if game.get("Caldya_side") == "blue")
-        blue_wins = sum(1 for game in games if game.get("Caldya_side") == "blue" and game.get("win"))
-        blue_win_rate = (blue_wins / blue_games * 100) if blue_games > 0 else 0
-        
-        red_games = sum(1 for game in games if game.get("Caldya_side") == "red")
-        red_wins = sum(1 for game in games if game.get("Caldya_side") == "red" and game.get("win"))
-        red_win_rate = (red_wins / red_games * 100) if red_games > 0 else 0
-        
-        # Modern metrics display
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            styled_metric("Overall Record", f"{wins}W - {losses}L", f"Win Rate: {win_rate:.1f}%", "blue")
-            st.progress(win_rate/100)
-        
-        with col2:
-            styled_metric("Blue Side Record", f"{blue_wins}W - {blue_games-blue_wins}L", f"Win Rate: {blue_win_rate:.1f}%", "blue")
-            st.progress(blue_win_rate/100)
-        
-        with col3:
-            styled_metric("Red Side Record", f"{red_wins}W - {red_games-red_wins}L", f"Win Rate: {red_win_rate:.1f}%", "blue") 
-            st.progress(red_win_rate/100)
-        
-        # Enhanced Objective Control section
-        st.header("Objective Control")
-        
-        # Calculate objective stats (excluding first blood from dataframe)
-        dragons_total = 0
-        barons_total = 0
-        first_dragon_games = 0
-        first_dragon_wins = 0
-        first_baron_games = 0
-        first_baron_wins = 0
-        first_herald_games = 0
-        first_herald_wins = 0
-        
-        for game in games:
-            caldya_team_data = None
-            if game.get("Caldya_side") == "blue" and "objectives" in game:
-                caldya_team_data = game["objectives"].get("blue_team", {})
-            elif game.get("Caldya_side") == "red" and "objectives" in game:
-                caldya_team_data = game["objectives"].get("red_team", {})
-            
-            if caldya_team_data and "objectives" in caldya_team_data:
-                dragons_total += caldya_team_data["objectives"].get("dragon", {}).get("kills", 0)
-                barons_total += caldya_team_data["objectives"].get("baron", {}).get("kills", 0)
-                
-                if caldya_team_data["objectives"].get("dragon", {}).get("first", False):
-                    first_dragon_games += 1
-                    if game.get("win"):
-                        first_dragon_wins += 1
-                
-                if caldya_team_data["objectives"].get("baron", {}).get("first", False):
-                    first_baron_games += 1
-                    if game.get("win"):
-                        first_baron_wins += 1
-                
-                if caldya_team_data["objectives"].get("riftHerald", {}).get("first", False):
-                    first_herald_games += 1
-                    if game.get("win"):
-                        first_herald_wins += 1
-        
-        # Calculate rates
-        first_dragon_rate = (first_dragon_wins / first_dragon_games * 100) if first_dragon_games > 0 else 0
-        first_baron_rate = (first_baron_wins / first_baron_games * 100) if first_baron_games > 0 else 0
-        first_herald_rate = (first_herald_wins / first_herald_games * 100) if first_herald_games > 0 else 0
-        
-        # Create modern visualization with Plotly (excluding first blood)
-        objective_df = pd.DataFrame({
-            "Objective": ["First Dragon", "First Herald", "First Baron"],
-            "Win Rate": [first_dragon_rate, first_herald_rate, first_baron_rate],
-            "Total Games": [first_dragon_games, first_herald_games, first_baron_games]
-        })
-        
-        col1, col2 = st.columns([3, 2])
-        
-        with col1:
-            # Create Plotly chart
-            fig = go.Figure(data=[
-                go.Bar(
-                    x=objective_df["Objective"], 
-                    y=objective_df["Win Rate"],
-                    marker=dict(
-                        color=['#f59e0b', '#8b5cf6', '#3b82f6'],
-                        line=dict(color='#1e293b', width=2)
-                    ),
-                    text=[f"{rate:.1f}%" for rate in objective_df["Win Rate"]],
-                    textposition='auto',
-                    textfont=dict(color='white', size=12, family='Inter')
-                )
+        if not games:
+            st.warning("No games found in database. Please import game data first.")
+        else:
+            # Create games table for listing
+            games_df = pd.DataFrame([
+                {
+                    "id": str(game.get("_id")),
+                    "date": game.get("date"),
+                    "opponent": game.get("opponent_team", {}).get("name", "Unknown"),
+                    "result": "WIN" if game.get("win") else "LOSS",
+                    "side": game.get("Caldya_side", "").upper(),
+                    "duration": game.get("game_duration", "0:00")
+                } for game in games
             ])
             
-            fig.update_layout(
-                title=dict(
-                    text="Win Rate When Securing Objectives",
-                    font=dict(color='#f8fafc', size=16, family='Inter'),
-                    x=0.5
-                ),
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#f8fafc', family='Inter'),
-                yaxis=dict(
-                    range=[0, 100],
-                    title="Win Rate (%)",
-                    gridcolor='#334155',
-                    gridwidth=1
-                ),
-                xaxis=dict(
-                    title="",
-                    tickfont=dict(size=10)
-                ),
-                margin=dict(l=20, r=20, t=50, b=20),
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with col2:
-            styled_metric("Avg. Dragons per Game", f"{dragons_total / total_games:.1f}" if total_games > 0 else "0")
-            styled_metric("Avg. Barons per Game", f"{barons_total / total_games:.1f}" if total_games > 0 else "0")
-            
-            st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
-            st.dataframe(
-                objective_df,
-                column_config={
-                    "Win Rate": st.column_config.ProgressColumn(
-                        "Win Rate",
-                        help="Win rate when securing objective",
-                        format="%.1f%%",
-                        min_value=0,
-                        max_value=100,
-                    ),
-                },
-                hide_index=True,
-                use_container_width=True
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
-
-elif page == "Player Stats":
-    st.title("Player Statistics")
-    
-    if not players_db:
-        st.warning("No player data found in database.")
-    else:
-        # Convert player data
-        players_data = []
-        for player in players_db:
-            players_data.append({
-                "name": player.get("name", "Unknown"),
-                "games_played": player.get("games_played", 0),
-                "avg_gold_15min": player.get("avg_player_data", {}).get("gold_15min", 0),
-                "avg_cs_15min": player.get("avg_player_data", {}).get("cs_15min", 0),
-                "avg_gold_diff_15min": player.get("avg_player_data", {}).get("gold_diff_15min", 0),
-                "avg_cs_diff_15min": player.get("avg_player_data", {}).get("cs_diff_15min", 0),
-                "kda_kills": player.get("avg_player_data", {}).get("kda_kills", 0),
-                "kda_deaths": player.get("avg_player_data", {}).get("kda_deaths", 0),
-                "kda_assists": player.get("avg_player_data", {}).get("kda_assists", 0),
-                "kda_ratio": player.get("avg_player_data", {}).get("kda_ratio", 0),
-                "avg_kda": player.get("avg_player_data", {}).get("kda", "0/0/0"),
-                "avg_control_wards": player.get("avg_control_wards", 0),
-                "avg_vision_score": player.get("avg_challenges", {}).get("vision_score", 0),
-                "avg_damage_per_minute": player.get("avg_challenges", {}).get("damage_per_minute", 0)
-            })
-        
-        players_df = pd.DataFrame(players_data)
-        
-        # Enhanced player selector
-        # st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-        players = sorted(list(players_df["name"]))
-        selected_player = st.selectbox("Select Player", players)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        if selected_player:
-            player_data = players_df[players_df["name"] == selected_player].iloc[0]
-            
-            # Header with player stats
-            st.markdown(f"""
-            <div class="modern-card" style="text-align: center; padding: 2rem;">
-                <h2 style="margin: 0; background: linear-gradient(135deg, #3b82f6, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                    {selected_player}
-                </h2>
-                <p style="color: #94a3b8; margin: 0.5rem 0 0 0;">Player Statistics Overview</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Key metrics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                styled_metric("Games Played", str(player_data["games_played"]))
-            with col2:
-                styled_metric("KDA Ratio", f"{player_data['kda_ratio']:.2f}")
-            with col3:
-                styled_metric("Average KDA", player_data["avg_kda"])
-            
-            # Performance metrics
-            st.header("Performance Metrics")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                styled_metric("Avg Gold@15", f"{player_data['avg_gold_15min']:.0f}")
-                diff_color = "good" if player_data['avg_gold_diff_15min'] >= 0 else "bad"
-                styled_metric("Avg Gold Diff@15", f"{player_data['avg_gold_diff_15min']:+.0f}", delta_color=diff_color)
-            
-            with col2:
-                styled_metric("Avg CS@15", f"{player_data['avg_cs_15min']:.1f}")
-                cs_diff_color = "good" if player_data['avg_cs_diff_15min'] >= 0 else "bad"
-                styled_metric("Avg CS Diff@15", f"{player_data['avg_cs_diff_15min']:+.1f}", delta_color=cs_diff_color)
-            
-            with col3:
-                styled_metric("Avg Vision Score", f"{player_data['avg_vision_score']:.1f}")
-                styled_metric("Avg Control Wards", f"{player_data['avg_control_wards']:.1f}")
-            
-            with col4:
-                styled_metric("Avg Damage/Min", f"{player_data['avg_damage_per_minute']:.1f}")
-            
-            # Player Challenges (without visualization)
-            st.header("Player Challenges")
-            
-            player_challenges = {}
-            for player in players_db:
-                if player.get("name") == selected_player:
-                    player_challenges = player.get("avg_challenges", {})
-                    break
-            
-            if player_challenges:
-                col1, col2, col3 = st.columns(3)
+            # Enhanced filtering section
+            with st.container():
+                st.subheader("Find an Official")
+                
+                # Extract all champions for filtering
+                all_caldya_champions = set()
+                all_enemy_champions = set()
+                caldya_player_names = ["Nille", "SPOOKY", "Nafkelah", "Soldier", "Steeelback"]
+                
+                for game in games:
+                    caldya_team_id = game.get("Caldya_id")
+                    if "final_items" in game:
+                        for player, item_data in game["final_items"].items():
+                            champion = item_data.get("champion", "")
+                            team_id = item_data.get("team_id")
+                            
+                            if champion:
+                                is_caldya_player = any(player.upper() == caldya_name.upper() for caldya_name in caldya_player_names)
+                                
+                                if is_caldya_player and team_id == caldya_team_id:
+                                    all_caldya_champions.add(champion)
+                                elif team_id != caldya_team_id:
+                                    all_enemy_champions.add(champion)
+                
+                # Sort champion lists
+                caldya_champions_list = ["All"] + sorted(list(all_caldya_champions))
+                enemy_champions_list = ["All"] + sorted(list(all_enemy_champions))
+                
+                col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
                 
                 with col1:
-                    styled_metric("Vision Score", f"{player_challenges.get('vision_score', 0):.1f}")
-                    styled_metric("Damage Per Minute", f"{player_challenges.get('damage_per_minute', 0):.1f}")
-                    styled_metric("Buffs Stolen", f"{player_challenges.get('buffs_stolen', 0):.1f}")
+                    # Date filtering
+                    min_date = games_df["date"].min() if not games_df.empty else ""
+                    max_date = games_df["date"].max() if not games_df.empty else ""
+                    date_range = st.date_input("Date Range", 
+                                               value=[min_date, max_date] if min_date and max_date else None,
+                                               key="date_filter")
+                    
+                    # Result filter
+                    result_filter = st.radio("Result", ["All", "WIN", "LOSS"])
                 
                 with col2:
-                    styled_metric("Skillshots Hit", f"{player_challenges.get('skill_shots_hit', 0):.1f}")
-                    styled_metric("Skillshots Dodged", f"{player_challenges.get('skill_shots_dodged', 0):.1f}")
-                    styled_metric("Perfect Game", f"{player_challenges.get('perfect_game', 0):.2f}")
+                    # Side filter
+                    side_filter = st.radio("Side", ["All", "BLUE", "RED"])
+                    
+                    # Opponent filter
+                    opponents = ["All"] + sorted(list(set(games_df["opponent"].tolist())))
+                    opponent_filter = st.selectbox("Opponent", opponents)
                 
                 with col3:
-                    styled_metric("Turret Plates Taken", f"{player_challenges.get('turret_plates_taken', 0):.1f}")
-                    # styled_metric("KDA Ratio", f"{player_challenges.get('kda', 0):.2f}")
-                    danced = "Yes" if player_challenges.get('dance_with_rift_herald', False) else "No"
-                    styled_metric("Danced with Herald", danced)
-            else:
-                st.warning(f"No challenge data found for player {selected_player}")
-            
-            # Game history moved to bottom
-            player_games = []
-            for game in games:
-                if selected_player in game.get("player_data", {}):
-                    player_stats = game["player_data"][selected_player]
-                    player_games.append({
-                        "game_id": str(game.get("_id")),
-                        "date": game.get("date"),
-                        "opponent": game.get("opponent_team", {}).get("name", "Unknown"),
-                        "win": game.get("win", False),
-                        "kda": player_stats.get("kda", "0/0/0"),
-                        "gold_15min": player_stats.get("gold_15min", 0),
-                        "cs_15min": player_stats.get("cs_15min", 0),
-                        "gold_diff_15min": player_stats.get("gold_diff_15min", 0),
-                        "cs_diff_15min": player_stats.get("cs_diff_15min", 0),
-                        "position": game.get("player_positions", {}).get(selected_player, "")
-                    })
-            
-            if player_games:
-                st.header("Game History")
+                    # Champion filters
+                    st.markdown("**Champion Filters**")
+                    allied_champion_filter = st.selectbox("Allied Champion", caldya_champions_list, 
+                                                         help="Filter games where Caldya played this champion")
+                    enemy_champion_filter = st.selectbox("Enemy Champion", enemy_champions_list,
+                                                        help="Filter games where opponent played this champion")
                 
-                games_df = pd.DataFrame(player_games)
-                games_df = games_df.sort_values("date", ascending=False)
+                with col4:
+                    # Apply filters
+                    filtered_games = games_df.copy()
+                    
+                    # Date filter
+                    if len(date_range) == 2:
+                        try:
+                            start_date, end_date = date_range
+                            filtered_games = filtered_games[(filtered_games["date"] >= str(start_date)) & 
+                                                           (filtered_games["date"] <= str(end_date))]
+                        except:
+                            pass
+                    
+                    # Basic filters
+                    if result_filter != "All":
+                        filtered_games = filtered_games[filtered_games["result"] == result_filter]
+                    if side_filter != "All":
+                        filtered_games = filtered_games[filtered_games["side"] == side_filter]
+                    if opponent_filter != "All":
+                        filtered_games = filtered_games[filtered_games["opponent"] == opponent_filter]
+                    
+                    # Champion filters - need to check actual game data
+                    if allied_champion_filter != "All" or enemy_champion_filter != "All":
+                        valid_game_ids = []
+                        
+                        for game in games:
+                            game_id = str(game.get("_id"))
+                            caldya_team_id = game.get("Caldya_id")
+                            
+                            # Check if this game matches current filters (before champion filter)
+                            if game_id not in filtered_games["id"].values:
+                                continue
+                            
+                            caldya_champions_in_game = set()
+                            enemy_champions_in_game = set()
+                            
+                            if "final_items" in game:
+                                for player, item_data in game["final_items"].items():
+                                    champion = item_data.get("champion", "")
+                                    team_id = item_data.get("team_id")
+                                    
+                                    if champion:
+                                        is_caldya_player = any(player.upper() == caldya_name.upper() for caldya_name in caldya_player_names)
+                                        
+                                        if is_caldya_player and team_id == caldya_team_id:
+                                            caldya_champions_in_game.add(champion)
+                                        elif team_id != caldya_team_id:
+                                            enemy_champions_in_game.add(champion)
+                            
+                            # Check champion filters
+                            allied_match = (allied_champion_filter == "All" or 
+                                          allied_champion_filter in caldya_champions_in_game)
+                            enemy_match = (enemy_champion_filter == "All" or 
+                                         enemy_champion_filter in enemy_champions_in_game)
+                            
+                            if allied_match and enemy_match:
+                                valid_game_ids.append(game_id)
+                        
+                        # Filter dataframe to only include games that match champion criteria
+                        filtered_games = filtered_games[filtered_games["id"].isin(valid_game_ids)]
+                    
+                    # Game selection
+                    if not filtered_games.empty:
+                        game_options = [f"{row['date']} | {row['opponent']} ({row['result']}, {row['side']} side)" 
+                                      for _, row in filtered_games.iterrows()]
+                        
+                        selected_index = st.selectbox("Select an Official", 
+                                                    range(len(game_options)),
+                                                    format_func=lambda i: game_options[i])
+                        
+                        selected_id = filtered_games.iloc[selected_index]["id"]
+                        
+                        # Display selection summary with champion info
+                        selected_row = filtered_games.iloc[selected_index]
+                        result_color = "#10b981" if selected_row['result'] == "WIN" else "#ef4444"
+                        
+                        # Add champion info to summary if filters are active
+                        champion_info = ""
+                        if allied_champion_filter != "All":
+                            champion_info += f" • Allied: {allied_champion_filter}"
+                        if enemy_champion_filter != "All":
+                            champion_info += f" • Enemy: {enemy_champion_filter}"
+                        
+                        st.markdown(f"""
+                        <div style="background: rgba(51, 65, 85, 0.3); padding: 1rem; border-radius: 8px; margin-top: 1rem; border-left: 4px solid {result_color};">
+                            <strong>Selected:</strong> {selected_row['date']} vs {selected_row['opponent']} • 
+                            <span style="color: {result_color}; font-weight: 600;">{selected_row['result']}</span> • 
+                            {selected_row['side']} side • Duration: {selected_row['duration']}{champion_info}
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.warning("No officials match the selected filters.")
+                        selected_id = None
+            
+            # Game details section
+            if selected_id:
+                game = next((g for g in games if str(g.get("_id")) == selected_id), None)
+                
+                if game:
+                    st.header("Game Details")
+                    
+                    # Game header with enhanced styling
+                    result_color = "#10b981" if game.get("win") else "#ef4444"
+                    result_text = "VICTORY" if game.get("win") else "DEFEAT"
+                    
+                    st.markdown(f"""
+                    <div class="modern-card" style="text-align: center; padding: 2rem;">
+                        <h2 style="margin: 0; color: {result_color}; font-size: 2.5rem; text-shadow: 0 0 20px {result_color}50;">
+                            {result_text}
+                        </h2>
+                        <h3 style="margin: 0.5rem 0 0 0; color: #94a3b8;">
+                            vs {game.get('opponent_team', {}).get('name', 'Unknown')}
+                        </h3>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Game metadata with modern cards
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        styled_metric("Date", game.get('date'))
+                        styled_metric("Duration", game.get('game_duration', '0:00'))
+                    
+                    with col2:
+                        styled_metric("Side", game.get('Caldya_side', '').upper())
+                        # First blood
+                        first_blood = game.get('first_blood', {})
+                        if first_blood.get('team'):
+                            fb_team = "Caldya" if first_blood.get('team') == "NAFKELAH_TEAM" else "Opponent"
+                            styled_metric("First Blood", fb_team)
+                    
+                    with col3:
+                        # Objectives with enhanced display
+                        caldya_objectives = game.get('objectives', {}).get('blue_team' if game.get('Caldya_side') == 'blue' else 'red_team', {}).get('objectives', {})
+                        enemy_objectives = game.get('objectives', {}).get('red_team' if game.get('Caldya_side') == 'blue' else 'blue_team', {}).get('objectives', {})
+                        
+                        dragons_caldya = caldya_objectives.get('dragon', {}).get('kills', 0)
+                        dragons_enemy = enemy_objectives.get('dragon', {}).get('kills', 0)
+                        styled_metric("Dragons", f"{dragons_caldya} - {dragons_enemy}")
+                        
+                        barons_caldya = caldya_objectives.get('baron', {}).get('kills', 0)
+                        barons_enemy = enemy_objectives.get('baron', {}).get('kills', 0)
+                        styled_metric("Barons", f"{barons_caldya} - {barons_enemy}")
+                    
+                    # Enhanced Final Items Section
+                    st.header("Scoreboard")
+                    if "final_items" in game and "player_data" in game:
+                        caldya_team_id = game.get("Caldya_id")
+                        caldya_player_items = []
+                        opponent_player_items = []
+                        
+                        for player, item_data in game["final_items"].items():
+                            # Get player KDA from game data
+                            player_stats = game["player_data"].get(player, {})
+                            kda = player_stats.get("kda", "0/0/0")
+                            
+                            if item_data.get("team_id") == caldya_team_id:
+                                caldya_player_items.append((player, item_data, kda))
+                            else:
+                                opponent_player_items.append((player, item_data, kda))
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.subheader("Caldya Final Items")
+                            
+                            for player, item_data, kda in caldya_player_items:
+                                champ_name = item_data.get("champion")
+                                champ_key = find_champion_key(champ_name, champion_data, champ_mapping)
+                                
+                                st.markdown('<div class="player-items-row">', unsafe_allow_html=True)
+                                
+                                # Layout: Champion section (icon + name/KDA below) | Items section
+                                champion_col, items_col = st.columns([1, 4])
+                                
+                                with champion_col:
+                                    # Champion icon
+                                    if champ_key:
+                                        st.image(
+                                            f"https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/champion/{champ_key}.png", 
+                                            width=60
+                                        )
+                                    
+                                    # Player info under champion
+                                    st.markdown(f"""
+                                    <div class="player-info-section">
+                                        <div class="player-name">{player}</div>
+                                        <div class="player-score">{kda}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                with items_col:
+                                    # Items right after champion
+                                    items_html = '<div class="items-section">'
+                                    trinket_id = item_data.get("trinket", 0)
+                                    player_items = item_data.get("items", [])
+                                    
+                                    # Si le dernier item est égal au trinket, ne pas l'afficher dans les items
+                                    if player_items and trinket_id > 0 and len(player_items) > 0 and player_items[-1] == trinket_id:
+                                        player_items = player_items[:-1]  # Enlever le dernier item
+                                    
+                                    for i, item_id in enumerate(player_items):
+                                        if i < 6 and item_id > 0:
+                                            items_html += f'<img src="https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/item/{item_id}.png" width="35" style="margin:2px; border-radius:4px; border:1px solid var(--border);" />'
+                                    
+                                    # Afficher le trinket avec un style spécial
+                                    if trinket_id > 0:
+                                        items_html += f'<img src="https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/item/{trinket_id}.png" width="35" style="margin:2px 2px 2px 8px; border-radius:4px; border:2px solid var(--accent-primary);" />'
+                                    
+                                    items_html += '</div>'
+                                    st.markdown(items_html, unsafe_allow_html=True)
+                                
+                                st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        with col2:
+                            st.subheader("Opponent Final Items")
+                            
+                            for player, item_data, kda in opponent_player_items:
+                                champ_name = item_data.get("champion")
+                                champ_key = find_champion_key(champ_name, champion_data, champ_mapping)
+                                
+                                st.markdown('<div class="player-items-row">', unsafe_allow_html=True)
+                                
+                                # Layout: Champion section (icon + name/KDA below) | Items section
+                                champion_col, items_col = st.columns([1, 4])
+                                
+                                with champion_col:
+                                    # Champion icon
+                                    if champ_key:
+                                        st.image(
+                                            f"https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/champion/{champ_key}.png", 
+                                            width=60
+                                        )
+                                    
+                                    # Player info under champion
+                                    st.markdown(f"""
+                                    <div class="player-info-section">
+                                        <div class="player-name" style="color: var(--danger);">{player}</div>
+                                        <div class="player-score">{kda}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                with items_col:
+                                    # Items right after champion
+                                    items_html = '<div class="items-section">'
+                                    trinket_id = item_data.get("trinket", 0)
+                                    player_items = item_data.get("items", [])
+                                    
+                                    # Si le dernier item est égal au trinket, ne pas l'afficher dans les items
+                                    if player_items and trinket_id > 0 and len(player_items) > 0 and player_items[-1] == trinket_id:
+                                        player_items = player_items[:-1]  # Enlever le dernier item
+                                    
+                                    for i, item_id in enumerate(player_items):
+                                        if i < 6 and item_id > 0:
+                                            items_html += f'<img src="https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/item/{item_id}.png" width="35" style="margin:2px; border-radius:4px; border:1px solid var(--border);" />'
+                                    
+                                    # Afficher le trinket avec un style spécial
+                                    if trinket_id > 0:
+                                        items_html += f'<img src="https://ddragon.leagueoflegends.com/cdn/{ddragon_version}/img/item/{trinket_id}.png" width="35" style="margin:2px 2px 2px 8px; border-radius:4px; border:2px solid var(--danger);" />'
+                                    
+                                    items_html += '</div>'
+                                    st.markdown(items_html, unsafe_allow_html=True)
+                                
+                                st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    # Enhanced Player Performance
+                    st.header("Player Performance")
+                    
+                    if "player_data" in game and "player_positions" in game:
+                        caldya_player_names = ["Nille", "SPOOKY", "Nafkelah", "Soldier", "Steeelback"]
+                        caldya_players = []
+                        opponent_players = []
+                        
+                        for player, stats in game["player_data"].items():
+                            player_data = {
+                                "Player": player,
+                                "KDA": stats.get("kda", "0/0/0"),
+                                "Gold@15": stats.get("gold_15min", 0),
+                                "CS@15": stats.get("cs_15min", 0),
+                                "Gold Diff@15": stats.get("gold_diff_15min", 0),
+                                "CS Diff@15": stats.get("cs_diff_15min", 0)
+                            }
+                            
+                            if player in caldya_player_names or player.upper() in [p.upper() for p in caldya_player_names]:
+                                caldya_players.append(player_data)
+                            else:
+                                opponent_players.append(player_data)
+                        
+                        column_config = {
+                            "Gold Diff@15": st.column_config.NumberColumn(
+                                "Gold Diff@15",
+                                help="Gold difference at 15 minutes",
+                                format="%d"
+                            ),
+                            "CS Diff@15": st.column_config.NumberColumn(
+                                "CS Diff@15",
+                                help="CS difference at 15 minutes",
+                                format="%.1f"
+                            ),
+                        }
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            if caldya_players:
+                                st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
+                                st.subheader("Caldya Players")
+                                caldya_df = pd.DataFrame(caldya_players)
+                                st.dataframe(
+                                    caldya_df,
+                                    column_config=column_config,
+                                    hide_index=True,
+                                    use_container_width=True
+                                )
+                                st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        with col2:
+                            if opponent_players:
+                                st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
+                                st.subheader("Opponent Players")
+                                opponent_df = pd.DataFrame(opponent_players)
+                                st.dataframe(
+                                    opponent_df,
+                                    column_config=column_config,
+                                    hide_index=True,
+                                    use_container_width=True
+                                )
+                                st.markdown('</div>', unsafe_allow_html=True)
+
+    elif page == "Team Stats":
+        st.title("Team Statistics")
+        
+        if not games:
+            st.warning("No games found in database. Please import game data first.")
+        else:
+            # Calculate stats
+            total_games = len(games)
+            wins = sum(1 for game in games if game.get("win"))
+            losses = total_games - wins
+            win_rate = (wins / total_games * 100) if total_games > 0 else 0
+            
+            # Side stats
+            blue_games = sum(1 for game in games if game.get("Caldya_side") == "blue")
+            blue_wins = sum(1 for game in games if game.get("Caldya_side") == "blue" and game.get("win"))
+            blue_win_rate = (blue_wins / blue_games * 100) if blue_games > 0 else 0
+            
+            red_games = sum(1 for game in games if game.get("Caldya_side") == "red")
+            red_wins = sum(1 for game in games if game.get("Caldya_side") == "red" and game.get("win"))
+            red_win_rate = (red_wins / red_games * 100) if red_games > 0 else 0
+            
+            # Modern metrics display
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                styled_metric("Overall Record", f"{wins}W - {losses}L", f"Win Rate: {win_rate:.1f}%", "blue")
+                st.progress(win_rate/100)
+            
+            with col2:
+                styled_metric("Blue Side Record", f"{blue_wins}W - {blue_games-blue_wins}L", f"Win Rate: {blue_win_rate:.1f}%", "blue")
+                st.progress(blue_win_rate/100)
+            
+            with col3:
+                styled_metric("Red Side Record", f"{red_wins}W - {red_games-red_wins}L", f"Win Rate: {red_win_rate:.1f}%", "blue") 
+                st.progress(red_win_rate/100)
+            
+            # Enhanced Objective Control section
+            st.header("Objective Control")
+            
+            # Calculate objective stats (excluding first blood from dataframe)
+            dragons_total = 0
+            barons_total = 0
+            first_dragon_games = 0
+            first_dragon_wins = 0
+            first_baron_games = 0
+            first_baron_wins = 0
+            first_herald_games = 0
+            first_herald_wins = 0
+            
+            for game in games:
+                caldya_team_data = None
+                if game.get("Caldya_side") == "blue" and "objectives" in game:
+                    caldya_team_data = game["objectives"].get("blue_team", {})
+                elif game.get("Caldya_side") == "red" and "objectives" in game:
+                    caldya_team_data = game["objectives"].get("red_team", {})
+                
+                if caldya_team_data and "objectives" in caldya_team_data:
+                    dragons_total += caldya_team_data["objectives"].get("dragon", {}).get("kills", 0)
+                    barons_total += caldya_team_data["objectives"].get("baron", {}).get("kills", 0)
+                    
+                    if caldya_team_data["objectives"].get("dragon", {}).get("first", False):
+                        first_dragon_games += 1
+                        if game.get("win"):
+                            first_dragon_wins += 1
+                    
+                    if caldya_team_data["objectives"].get("baron", {}).get("first", False):
+                        first_baron_games += 1
+                        if game.get("win"):
+                            first_baron_wins += 1
+                    
+                    if caldya_team_data["objectives"].get("riftHerald", {}).get("first", False):
+                        first_herald_games += 1
+                        if game.get("win"):
+                            first_herald_wins += 1
+            
+            # Calculate rates
+            first_dragon_rate = (first_dragon_wins / first_dragon_games * 100) if first_dragon_games > 0 else 0
+            first_baron_rate = (first_baron_wins / first_baron_games * 100) if first_baron_games > 0 else 0
+            first_herald_rate = (first_herald_wins / first_herald_games * 100) if first_herald_games > 0 else 0
+            
+            # Create modern visualization with Plotly (excluding first blood)
+            objective_df = pd.DataFrame({
+                "Objective": ["First Dragon", "First Herald", "First Baron"],
+                "Win Rate": [first_dragon_rate, first_herald_rate, first_baron_rate],
+                "Total Games": [first_dragon_games, first_herald_games, first_baron_games]
+            })
+            
+            col1, col2 = st.columns([3, 2])
+            
+            with col1:
+                # Create Plotly chart
+                fig = go.Figure(data=[
+                    go.Bar(
+                        x=objective_df["Objective"], 
+                        y=objective_df["Win Rate"],
+                        marker=dict(
+                            color=['#f59e0b', '#8b5cf6', '#3b82f6'],
+                            line=dict(color='#1e293b', width=2)
+                        ),
+                        text=[f"{rate:.1f}%" for rate in objective_df["Win Rate"]],
+                        textposition='auto',
+                        textfont=dict(color='white', size=12, family='Inter')
+                    )
+                ])
+                
+                fig.update_layout(
+                    title=dict(
+                        text="Win Rate When Securing Objectives",
+                        font=dict(color='#f8fafc', size=16, family='Inter'),
+                        x=0.5
+                    ),
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#f8fafc', family='Inter'),
+                    yaxis=dict(
+                        range=[0, 100],
+                        title="Win Rate (%)",
+                        gridcolor='#334155',
+                        gridwidth=1
+                    ),
+                    xaxis=dict(
+                        title="",
+                        tickfont=dict(size=10)
+                    ),
+                    margin=dict(l=20, r=20, t=50, b=20),
+                    height=400
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            with col2:
+                styled_metric("Avg. Dragons per Game", f"{dragons_total / total_games:.1f}" if total_games > 0 else "0")
+                styled_metric("Avg. Barons per Game", f"{barons_total / total_games:.1f}" if total_games > 0 else "0")
                 
                 st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
                 st.dataframe(
-                    games_df,
+                    objective_df,
                     column_config={
-                        "game_id": None,
-                        "date": "Date",
-                        "opponent": "Opponent",
-                        "win": st.column_config.CheckboxColumn("Win"),
-                        "kda": "KDA",
-                        "gold_15min": st.column_config.NumberColumn("Gold@15", format="%d"),
-                        "cs_15min": st.column_config.NumberColumn("CS@15", format="%.1f"),
-                        "gold_diff_15min": st.column_config.NumberColumn("Gold Diff@15", format="%+d"),
-                        "cs_diff_15min": st.column_config.NumberColumn("CS Diff@15", format="%+.1f")
+                        "Win Rate": st.column_config.ProgressColumn(
+                            "Win Rate",
+                            help="Win rate when securing objective",
+                            format="%.1f%%",
+                            min_value=0,
+                            max_value=100,
+                        ),
                     },
                     hide_index=True,
                     use_container_width=True
                 )
                 st.markdown('</div>', unsafe_allow_html=True)
 
-elif page == "Champion Analysis":
-    st.title("Champion Analysis")
+    elif page == "Player Stats":
+        st.title("Player Statistics")
+        
+        if not players_db:
+            st.warning("No player data found in database.")
+        else:
+            # Convert player data
+            players_data = []
+            for player in players_db:
+                players_data.append({
+                    "name": player.get("name", "Unknown"),
+                    "games_played": player.get("games_played", 0),
+                    "avg_gold_15min": player.get("avg_player_data", {}).get("gold_15min", 0),
+                    "avg_cs_15min": player.get("avg_player_data", {}).get("cs_15min", 0),
+                    "avg_gold_diff_15min": player.get("avg_player_data", {}).get("gold_diff_15min", 0),
+                    "avg_cs_diff_15min": player.get("avg_player_data", {}).get("cs_diff_15min", 0),
+                    "kda_kills": player.get("avg_player_data", {}).get("kda_kills", 0),
+                    "kda_deaths": player.get("avg_player_data", {}).get("kda_deaths", 0),
+                    "kda_assists": player.get("avg_player_data", {}).get("kda_assists", 0),
+                    "kda_ratio": player.get("avg_player_data", {}).get("kda_ratio", 0),
+                    "avg_kda": player.get("avg_player_data", {}).get("kda", "0/0/0"),
+                    "avg_control_wards": player.get("avg_control_wards", 0),
+                    "avg_vision_score": player.get("avg_challenges", {}).get("vision_score", 0),
+                    "avg_damage_per_minute": player.get("avg_challenges", {}).get("damage_per_minute", 0)
+                })
+            
+            players_df = pd.DataFrame(players_data)
+            
+            # Enhanced player selector
+            players = sorted(list(players_df["name"]))
+            selected_player = st.selectbox("Select Player", players)
+            
+            if selected_player:
+                player_data = players_df[players_df["name"] == selected_player].iloc[0]
+                
+                # Header with player stats
+                st.markdown(f"""
+                <div class="modern-card" style="text-align: center; padding: 2rem;">
+                    <h2 style="margin: 0; background: linear-gradient(135deg, #3b82f6, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                        {selected_player}
+                    </h2>
+                    <p style="color: #94a3b8; margin: 0.5rem 0 0 0;">Player Statistics Overview</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Key metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    styled_metric("Games Played", str(player_data["games_played"]))
+                with col2:
+                    styled_metric("KDA Ratio", f"{player_data['kda_ratio']:.2f}")
+                with col3:
+                    styled_metric("Average KDA", player_data["avg_kda"])
+                
+                # Performance metrics
+                st.header("Performance Metrics")
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    styled_metric("Avg Gold@15", f"{player_data['avg_gold_15min']:.0f}")
+                    diff_color = "good" if player_data['avg_gold_diff_15min'] >= 0 else "bad"
+                    styled_metric("Avg Gold Diff@15", f"{player_data['avg_gold_diff_15min']:+.0f}", delta_color=diff_color)
+                
+                with col2:
+                    styled_metric("Avg CS@15", f"{player_data['avg_cs_15min']:.1f}")
+                    cs_diff_color = "good" if player_data['avg_cs_diff_15min'] >= 0 else "bad"
+                    styled_metric("Avg CS Diff@15", f"{player_data['avg_cs_diff_15min']:+.1f}", delta_color=cs_diff_color)
+                
+                with col3:
+                    styled_metric("Avg Vision Score", f"{player_data['avg_vision_score']:.1f}")
+                    styled_metric("Avg Control Wards", f"{player_data['avg_control_wards']:.1f}")
+                
+                with col4:
+                    styled_metric("Avg Damage/Min", f"{player_data['avg_damage_per_minute']:.1f}")
+                
+                # Player Challenges (without visualization)
+                st.header("Player Challenges")
+                
+                player_challenges = {}
+                for player in players_db:
+                    if player.get("name") == selected_player:
+                        player_challenges = player.get("avg_challenges", {})
+                        break
+                
+                if player_challenges:
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        styled_metric("Vision Score", f"{player_challenges.get('vision_score', 0):.1f}")
+                        styled_metric("Damage Per Minute", f"{player_challenges.get('damage_per_minute', 0):.1f}")
+                        styled_metric("Buffs Stolen", f"{player_challenges.get('buffs_stolen', 0):.1f}")
+                    
+                    with col2:
+                        styled_metric("Skillshots Hit", f"{player_challenges.get('skill_shots_hit', 0):.1f}")
+                        styled_metric("Skillshots Dodged", f"{player_challenges.get('skill_shots_dodged', 0):.1f}")
+                        styled_metric("Perfect Game", f"{player_challenges.get('perfect_game', 0):.2f}")
+                    
+                    with col3:
+                        styled_metric("Turret Plates Taken", f"{player_challenges.get('turret_plates_taken', 0):.1f}")
+                        danced = "Yes" if player_challenges.get('dance_with_rift_herald', False) else "No"
+                        styled_metric("Danced with Herald", danced)
+                else:
+                    st.warning(f"No challenge data found for player {selected_player}")
+                
+                # Game history moved to bottom
+                player_games = []
+                for game in games:
+                    if selected_player in game.get("player_data", {}):
+                        player_stats = game["player_data"][selected_player]
+                        player_games.append({
+                            "game_id": str(game.get("_id")),
+                            "date": game.get("date"),
+                            "opponent": game.get("opponent_team", {}).get("name", "Unknown"),
+                            "win": game.get("win", False),
+                            "kda": player_stats.get("kda", "0/0/0"),
+                            "gold_15min": player_stats.get("gold_15min", 0),
+                            "cs_15min": player_stats.get("cs_15min", 0),
+                            "gold_diff_15min": player_stats.get("gold_diff_15min", 0),
+                            "cs_diff_15min": player_stats.get("cs_diff_15min", 0),
+                            "position": game.get("player_positions", {}).get(selected_player, "")
+                        })
+                
+                if player_games:
+                    st.header("Game History")
+                    
+                    games_df = pd.DataFrame(player_games)
+                    games_df = games_df.sort_values("date", ascending=False)
+                    
+                    st.markdown('<div class="dataframe-container">', unsafe_allow_html=True)
+                    st.dataframe(
+                        games_df,
+                        column_config={
+                            "game_id": None,
+                            "date": "Date",
+                            "opponent": "Opponent",
+                            "win": st.column_config.CheckboxColumn("Win"),
+                            "kda": "KDA",
+                            "gold_15min": st.column_config.NumberColumn("Gold@15", format="%d"),
+                            "cs_15min": st.column_config.NumberColumn("CS@15", format="%.1f"),
+                            "gold_diff_15min": st.column_config.NumberColumn("Gold Diff@15", format="%+d"),
+                            "cs_diff_15min": st.column_config.NumberColumn("CS Diff@15", format="%+.1f")
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+    elif page == "Champion Analysis":
+        st.title("Champion Analysis")
+        
+        if not games:
+            st.warning("No games found in database. Please import game data first.")
+        else:
+            # Define player roles
+            caldya_players = {
+                "Nille": "Top",
+                "SPOOKY": "Jungle", 
+                "Nafkelah": "Mid",
+                "Soldier": "ADC",
+                "Steeelback": "Support"
+            }
+            
+            # Role colors for better visual distinction
+            role_colors = {
+                "Top": "#e11d48",      # Red
+                "Jungle": "#10b981",   # Green  
+                "Mid": "#3b82f6",      # Blue
+                "ADC": "#f59e0b",      # Orange
+                "Support": "#8b5cf6"   # Purple
+            }
+            
+            # Collect champion data for Caldya players
+            caldya_champion_data = {}
+            opponent_champion_data = {}
+            
+            for game in games:
+                game_win = game.get("win", False)
+                caldya_team_id = game.get("Caldya_id")
+                
+                if "final_items" in game:
+                    for player, item_data in game["final_items"].items():
+                        champion = item_data.get("champion", "Unknown")
+                        team_id = item_data.get("team_id")
+                        
+                        # Check if this is a Caldya player
+                        caldya_player = None
+                        for caldya_name, role in caldya_players.items():
+                            if player.upper() == caldya_name.upper() or player == caldya_name:
+                                caldya_player = caldya_name
+                                break
+                        
+                        if caldya_player and team_id == caldya_team_id:
+                            # Caldya player
+                            role = caldya_players[caldya_player]
+                            if role not in caldya_champion_data:
+                                caldya_champion_data[role] = {}
+                            if champion not in caldya_champion_data[role]:
+                                caldya_champion_data[role][champion] = {"wins": 0, "games": 0}
+                            
+                            caldya_champion_data[role][champion]["games"] += 1
+                            if game_win:
+                                caldya_champion_data[role][champion]["wins"] += 1
+                        
+                        elif team_id != caldya_team_id:
+                            # Opponent player
+                            if "Opponent" not in opponent_champion_data:
+                                opponent_champion_data["Opponent"] = {}
+                            if champion not in opponent_champion_data["Opponent"]:
+                                opponent_champion_data["Opponent"][champion] = {"wins": 0, "games": 0}
+                            
+                            opponent_champion_data["Opponent"][champion]["games"] += 1
+                            if not game_win:  # Opponent wins when Caldya loses
+                                opponent_champion_data["Opponent"][champion]["wins"] += 1
+            
+            # Create tabs for different views
+            tab1, tab2 = st.tabs(["🏆 Caldya Champions", "⚔️ Opponent Analysis"])
+            
+            with tab1:
+                st.markdown("""
+                <div style="text-align: center; margin-bottom: 2rem;">
+                    <h2 style="background: linear-gradient(135deg, #3b82f6, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
+                        Caldya Champion Performance by Role
+                    </h2>
+                    <p style="color: #94a3b8; font-size: 1.1rem;">Analyzing champion win rates for each team member</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Create role sections
+                for role in ["Top", "Jungle", "Mid", "ADC", "Support"]:
+                    player_name = [k for k, v in caldya_players.items() if v == role][0]
+                    role_color = role_colors.get(role, "#3b82f6")
+                    
+                    if role in caldya_champion_data and caldya_champion_data[role]:
+                        # Prepare data for this role
+                        role_data = []
+                        for champion, stats in caldya_champion_data[role].items():
+                            if stats["games"] > 0:
+                                win_rate = (stats["wins"] / stats["games"]) * 100
+                                role_data.append({
+                                    "champion": champion,
+                                    "games": stats["games"],
+                                    "wins": stats["wins"],
+                                    "losses": stats["games"] - stats["wins"],
+                                    "win_rate": win_rate
+                                })
+                        
+                        # Sort by games played, then by win rate
+                        role_data.sort(key=lambda x: (x["games"], x["win_rate"]), reverse=True)
+                        
+                        # Role header with modern styling
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, {role_color}20, {role_color}10); 
+                                    border-left: 4px solid {role_color}; 
+                                    border-radius: 12px; 
+                                    padding: 1.5rem; 
+                                    margin: 2rem 0 1rem 0;
+                                    backdrop-filter: blur(10px);">
+                            <h3 style="color: {role_color}; margin: 0; display: flex; align-items: center; gap: 1rem;">
+                                <span style="font-size: 1.8rem;">{role}</span>
+                                <span style="color: #94a3b8; font-size: 1.2rem; font-weight: 400;">• {player_name}</span>
+                            </h3>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Create champion cards layout
+                        if len(role_data) <= 3:
+                            # Few champions - display in columns with vertical separators
+                            if len(role_data) == 1:
+                                cols = st.columns([1, 2, 1])
+                                with cols[1]:
+                                    create_champion_card(role_data[0], role_color, champion_data, champ_mapping, ddragon_version)
+                            elif len(role_data) == 2:
+                                cols = st.columns([2, 1, 2])
+                                with cols[0]:
+                                    create_champion_card(role_data[0], role_color, champion_data, champ_mapping, ddragon_version)
+                                with cols[1]:
+                                    st.markdown("", unsafe_allow_html=True)  # Separator space
+                                with cols[2]:
+                                    create_champion_card(role_data[1], role_color, champion_data, champ_mapping, ddragon_version)
+                            elif len(role_data) == 3:
+                                cols = st.columns([3, 1, 3, 1, 3])
+                                with cols[0]:
+                                    create_champion_card(role_data[0], role_color, champion_data, champ_mapping, ddragon_version)
+                                with cols[1]:
+                                    st.markdown('<div style="border-left: 2px solid #475569; height: 400px; margin: 2rem 0;"></div>', unsafe_allow_html=True)
+                                with cols[2]:
+                                    create_champion_card(role_data[1], role_color, champion_data, champ_mapping, ddragon_version)
+                                with cols[3]:
+                                    st.markdown('<div style="border-left: 2px solid #475569; height: 400px; margin: 2rem 0;"></div>', unsafe_allow_html=True)
+                                with cols[4]:
+                                    create_champion_card(role_data[2], role_color, champion_data, champ_mapping, ddragon_version)
+                        else:
+                            # Many champions - display in grid with metrics + detailed table
+                            # Top 3 champions as cards with separators
+                            cols = st.columns([3, 1, 3, 1, 3])
+                            for i in range(min(3, len(role_data))):
+                                col_index = i * 2  # 0, 2, 4
+                                with cols[col_index]:
+                                    create_champion_card(role_data[i], role_color, champion_data, champ_mapping, ddragon_version)
+                                # Add separator after first two champions
+                                if i < 2:
+                                    with cols[col_index + 1]:
+                                        st.markdown('<div style="border-left: 2px solid #475569; height: 400px; margin: 2rem 0;"></div>', unsafe_allow_html=True)
+                            
+                            # Remaining champions in detailed view
+                            if len(role_data) > 3:
+                                with st.expander(f"View All {role} Champions ({len(role_data)} total)", expanded=False):
+                                    # Create detailed champion grid
+                                    remaining_champs = role_data[3:]
+                                    for champ_data in remaining_champs:
+                                        create_champion_row(champ_data, role_color, champion_data, champ_mapping, ddragon_version)
+                    else:
+                        # No data for this role
+                        st.markdown(f"""
+                        <div style="background: rgba(51, 65, 85, 0.3); 
+                                    border-left: 4px solid {role_color}; 
+                                    border-radius: 12px; 
+                                    padding: 1.5rem; 
+                                    margin: 2rem 0 1rem 0;
+                                    text-align: center;">
+                            <h3 style="color: {role_color}; margin: 0 0 0.5rem 0;">{role} • {player_name}</h3>
+                            <p style="color: #94a3b8; margin: 0;">No champion data available</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+            
+            with tab2:
+                st.markdown("""
+                <div style="text-align: center; margin-bottom: 2rem;">
+                    <h2 style="background: linear-gradient(135deg, #ef4444, #f87171); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
+                        Enemy Champion Analysis
+                    </h2>
+                    <p style="color: #94a3b8; font-size: 1.1rem;">Champions that opponents use against Caldya</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if "Opponent" in opponent_champion_data:
+                    # Prepare opponent data
+                    opponent_data = []
+                    for champion, stats in opponent_champion_data["Opponent"].items():
+                        if stats["games"] > 0:
+                            win_rate = (stats["wins"] / stats["games"]) * 100
+                            opponent_data.append({
+                                "champion": champion,
+                                "games": stats["games"],
+                                "wins": stats["wins"],
+                                "losses": stats["games"] - stats["wins"],
+                                "win_rate": win_rate
+                            })
+                    
+                    if opponent_data:
+                        # Sort by games played, then by win rate
+                        opponent_data.sort(key=lambda x: (x["games"], x["win_rate"]), reverse=True)
+                        
+                        # Summary stats cards
+                        total_unique_champs = len(opponent_data)
+                        high_winrate_champs = len([d for d in opponent_data if d["win_rate"] > 60])
+                        most_played = opponent_data[0] if opponent_data else None
+                        
+                        # Top stats
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            styled_metric("Unique Champions Faced", str(total_unique_champs))
+                        with col2:
+                            styled_metric("High Win Rate vs Caldya", f"{high_winrate_champs} champions", "> 60% win rate", "bad")
+                        with col3:
+                            if most_played:
+                                styled_metric("Most Played Against Us", most_played["champion"], f"{most_played['games']} games", "blue")
+                        
+                        # Threat Level Analysis
+                        st.subheader("🚨 Threat Level Analysis")
+                        
+                        # Categorize threats
+                        high_threat = [d for d in opponent_data if d["win_rate"] >= 70 and d["games"] >= 2]
+                        medium_threat = [d for d in opponent_data if 50 <= d["win_rate"] < 70 and d["games"] >= 2]
+                        low_threat = [d for d in opponent_data if d["win_rate"] < 50 and d["games"] >= 2]
+                        
+                        # High threat champions
+                        if high_threat:
+                            st.markdown("""
+                            <h4 style="color: #ef4444; margin: 1.5rem 0 1rem 0;">
+                                🔥 High Threat Champions (≥70% win rate, min 2 games)
+                            </h4>
+                            """, unsafe_allow_html=True)
+                            
+                            # Display threat champions in rows
+                            for champ_data in high_threat:
+                                create_champion_row(champ_data, "#ef4444", champion_data, champ_mapping, ddragon_version)
+                        
+                        # Medium threat champions  
+                        if medium_threat:
+                            st.markdown("""
+                            <h4 style="color: #f59e0b; margin: 1.5rem 0 1rem 0;">
+                                ⚠️ Medium Threat Champions (50-69% win rate, min 2 games)
+                            </h4>
+                            """, unsafe_allow_html=True)
+                            
+                            # Display threat champions in rows
+                            for champ_data in medium_threat:
+                                create_champion_row(champ_data, "#f59e0b", champion_data, champ_mapping, ddragon_version)
+                        
+                        # Low threat champions
+                        if low_threat:
+                            st.markdown("""
+                            <h4 style="color: #10b981; margin: 1.5rem 0 1rem 0;">
+                                ✅ Favorable Matchups (<50% win rate vs us, min 2 games)
+                            </h4>
+                            """, unsafe_allow_html=True)
+                            
+                            # Display threat champions in rows
+                            for champ_data in low_threat:
+                                create_champion_row(champ_data, "#10b981", champion_data, champ_mapping, ddragon_version)
+                        
+                        # Detailed table for all opponents
+                        with st.expander("📊 Complete Opponent Champion Statistics", expanded=False):
+                            # Display all opponent data in detailed format
+                            for champ_data in opponent_data:
+                                create_champion_row(champ_data, "#94a3b8", champion_data, champ_mapping, ddragon_version)
+                else:
+                    st.info("No opponent champion data available")
+
+elif main_page == "Scrims":
+    st.title("Scrims Champion Analysis")
     
-    if not games:
-        st.warning("No games found in database. Please import game data first.")
+    # Load scrims data
+    scrims_data = load_scrims()
+    
+    if not scrims_data:
+        st.warning("No scrims data found in database. Please import scrim data first.")
     else:
         # Define player roles
-        caldya_players = {
+        players = {
             "Nille": "Top",
             "SPOOKY": "Jungle", 
             "Nafkelah": "Mid",
@@ -1607,71 +1782,103 @@ elif page == "Champion Analysis":
             "Support": "#8b5cf6"   # Purple
         }
         
-        # Collect champion data for Caldya players
-        caldya_champion_data = {}
-        opponent_champion_data = {}
+        # Collect champion data for players
+        team_champion_data = {}
         
-        for game in games:
-            game_win = game.get("win", False)
-            caldya_team_id = game.get("Caldya_id")
+        # Process each scrim
+        for scrim in scrims_data:
+            participants = scrim.get("participants", [])
             
-            if "final_items" in game:
-                for player, item_data in game["final_items"].items():
-                    champion = item_data.get("champion", "Unknown")
-                    team_id = item_data.get("team_id")
-                    
-                    # Check if this is a Caldya player
-                    caldya_player = None
-                    for caldya_name, role in caldya_players.items():
-                        if player.upper() == caldya_name.upper() or player == caldya_name:
-                            caldya_player = caldya_name
-                            break
-                    
-                    if caldya_player and team_id == caldya_team_id:
-                        # Caldya player
-                        role = caldya_players[caldya_player]
-                        if role not in caldya_champion_data:
-                            caldya_champion_data[role] = {}
-                        if champion not in caldya_champion_data[role]:
-                            caldya_champion_data[role][champion] = {"wins": 0, "games": 0}
-                        
-                        caldya_champion_data[role][champion]["games"] += 1
-                        if game_win:
-                            caldya_champion_data[role][champion]["wins"] += 1
-                    
-                    elif team_id != caldya_team_id:
-                        # Opponent player
-                        if "Opponent" not in opponent_champion_data:
-                            opponent_champion_data["Opponent"] = {}
-                        if champion not in opponent_champion_data["Opponent"]:
-                            opponent_champion_data["Opponent"][champion] = {"wins": 0, "games": 0}
-                        
-                        opponent_champion_data["Opponent"][champion]["games"] += 1
-                        if not game_win:  # Opponent wins when Caldya loses
-                            opponent_champion_data["Opponent"][champion]["wins"] += 1
-        
-        # Create tabs for different views
-        tab1, tab2 = st.tabs(["🏆 Caldya Champions", "⚔️ Opponent Analysis"])
-        
-        with tab1:
-            st.markdown("""
-            <div style="text-align: center; margin-bottom: 2rem;">
-                <h2 style="background: linear-gradient(135deg, #3b82f6, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
-                    Caldya Champion Performance by Role
-                </h2>
-                <p style="color: #94a3b8; font-size: 1.1rem;">Analyzing champion win rates for each team member</p>
-            </div>
-            """, unsafe_allow_html=True)
+            # Find team ID by looking for our players
+            team_id = None
+            for participant in participants:
+                riot_name = participant.get("RIOT_ID_GAME_NAME", "")
+                # Extract player name without prefix
+                clean_player_name = riot_name
+                for prefix in ["VLT ", "CLA "]:
+                    if riot_name.startswith(prefix):
+                        clean_player_name = riot_name[len(prefix):]
+                        break
+                
+                if clean_player_name in players:
+                    team_id = participant.get("TEAM")
+                    break
             
-            # Create role sections
-            for role in ["Top", "Jungle", "Mid", "ADC", "Support"]:
-                player_name = [k for k, v in caldya_players.items() if v == role][0]
+            # Process each participant
+            for participant in participants:
+                riot_name = participant.get("RIOT_ID_GAME_NAME", "")
+                champion = participant.get("SKIN", "")
+                win_status = participant.get("WIN", "")
+                participant_team_id = participant.get("TEAM")
+                
+                # Extract player name without prefix
+                clean_player_name = riot_name
+                for prefix in ["VLT ", "CLA "]:
+                    if riot_name.startswith(prefix):
+                        clean_player_name = riot_name[len(prefix):]
+                        break
+                
+                # Check if this is one of our players
+                if clean_player_name in players and participant_team_id == team_id:
+                    role = players[clean_player_name]
+                    
+                    # Initialize role data if needed
+                    if role not in team_champion_data:
+                        team_champion_data[role] = {}
+                    if champion not in team_champion_data[role]:
+                        team_champion_data[role][champion] = {"wins": 0, "games": 0}
+                    
+                    # Count the game
+                    team_champion_data[role][champion]["games"] += 1
+                    if win_status == "Win":
+                        team_champion_data[role][champion]["wins"] += 1
+        
+        # Display results
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <h2 style="background: linear-gradient(135deg, #3b82f6, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
+                Champion Performance by Role
+            </h2>
+            <p style="color: #94a3b8; font-size: 1.1rem;">Analyzing champion win rates for each team member in scrims</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Create 5 columns layout for roles
+        roles = ["Top", "Jungle", "Mid", "ADC", "Support"]
+        cols = st.columns(5)
+        
+        for i, role in enumerate(roles):
+            with cols[i]:
+                player_name = [k for k, v in players.items() if v == role][0]
                 role_color = role_colors.get(role, "#3b82f6")
                 
-                if role in caldya_champion_data and caldya_champion_data[role]:
+                # Role header
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, {role_color}20, {role_color}10); 
+                            border: 2px solid {role_color}; 
+                            border-radius: 16px; 
+                            padding: 1rem; 
+                            margin-bottom: 1rem;
+                            text-align: center;
+                            backdrop-filter: blur(10px);
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;">
+                    <h3 style="color: {role_color}; margin: 0; font-size: 1.4rem; font-weight: 700; text-align: center; width: 100%;">
+                        {role}
+                    </h3>
+                    <p style="color: #94a3b8; margin: 0.25rem 0 0 0; font-size: 0.9rem; text-align: center; width: 100%;">
+                        {player_name}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Champions for this role
+                if role in team_champion_data and team_champion_data[role]:
                     # Prepare data for this role
                     role_data = []
-                    for champion, stats in caldya_champion_data[role].items():
+                    for champion, stats in team_champion_data[role].items():
                         if stats["games"] > 0:
                             win_rate = (stats["wins"] / stats["games"]) * 100
                             role_data.append({
@@ -1685,168 +1892,121 @@ elif page == "Champion Analysis":
                     # Sort by games played, then by win rate
                     role_data.sort(key=lambda x: (x["games"], x["win_rate"]), reverse=True)
                     
-                    # Role header with modern styling
-                    st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {role_color}20, {role_color}10); 
-                                border-left: 4px solid {role_color}; 
-                                border-radius: 12px; 
-                                padding: 1.5rem; 
-                                margin: 2rem 0 1rem 0;
-                                backdrop-filter: blur(10px);">
-                        <h3 style="color: {role_color}; margin: 0; display: flex; align-items: center; gap: 1rem;">
-                            <span style="font-size: 1.8rem;">{role}</span>
-                            <span style="color: #94a3b8; font-size: 1.2rem; font-weight: 400;">• {player_name}</span>
-                        </h3>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Create champion cards layout
-                    if len(role_data) <= 3:
-                        # Few champions - display in columns with vertical separators
-                        if len(role_data) == 1:
-                            cols = st.columns([1, 2, 1])
-                            with cols[1]:
-                                create_champion_card(role_data[0], role_color, champion_data, champ_mapping, ddragon_version)
-                        elif len(role_data) == 2:
-                            cols = st.columns([2, 1, 2])
-                            with cols[0]:
-                                create_champion_card(role_data[0], role_color, champion_data, champ_mapping, ddragon_version)
-                            with cols[1]:
-                                st.markdown("", unsafe_allow_html=True)  # Separator space
-                            with cols[2]:
-                                create_champion_card(role_data[1], role_color, champion_data, champ_mapping, ddragon_version)
-                        elif len(role_data) == 3:
-                            cols = st.columns([3, 1, 3, 1, 3])
-                            with cols[0]:
-                                create_champion_card(role_data[0], role_color, champion_data, champ_mapping, ddragon_version)
-                            with cols[1]:
-                                st.markdown('<div style="border-left: 2px solid #475569; height: 400px; margin: 2rem 0;"></div>', unsafe_allow_html=True)
-                            with cols[2]:
-                                create_champion_card(role_data[1], role_color, champion_data, champ_mapping, ddragon_version)
-                            with cols[3]:
-                                st.markdown('<div style="border-left: 2px solid #475569; height: 400px; margin: 2rem 0;"></div>', unsafe_allow_html=True)
-                            with cols[4]:
-                                create_champion_card(role_data[2], role_color, champion_data, champ_mapping, ddragon_version)
-                    else:
-                        # Many champions - display in grid with metrics + detailed table
-                        # Top 3 champions as cards with separators
-                        cols = st.columns([3, 1, 3, 1, 3])
-                        for i in range(min(3, len(role_data))):
-                            col_index = i * 2  # 0, 2, 4
-                            with cols[col_index]:
-                                create_champion_card(role_data[i], role_color, champion_data, champ_mapping, ddragon_version)
-                            # Add separator after first two champions
-                            if i < 2:
-                                with cols[col_index + 1]:
-                                    st.markdown('<div style="border-left: 2px solid #475569; height: 400px; margin: 2rem 0;"></div>', unsafe_allow_html=True)
+                    # Display champions in compact cards
+                    for j, champ_data in enumerate(role_data):
+                        champion_name = champ_data["champion"]
+                        win_rate = champ_data["win_rate"]
+                        games = champ_data["games"]
+                        wins = champ_data["wins"]
                         
-                        # Remaining champions in detailed view
-                        if len(role_data) > 3:
-                            with st.expander(f"View All {role} Champions ({len(role_data)} total)", expanded=False):
-                                # Create detailed champion grid
-                                remaining_champs = role_data[3:]
-                                for champ_data in remaining_champs:
-                                    create_champion_row(champ_data, role_color, champion_data, champ_mapping, ddragon_version)
+                        # Get champion image
+                        champ_key = find_champion_key(champion_name, champion_data, champ_mapping)
+                        
+                        # Champion card with role color theme
+                        st.markdown(f"""
+                        <div style="background: rgba(51, 65, 85, 0.4); 
+                                    border: 1px solid {role_color}50; 
+                                    border-radius: 12px; 
+                                    padding: 0.75rem; 
+                                    margin-bottom: 0.75rem;
+                                    text-align: center;
+                                    transition: all 0.3s ease;">
+                            <div style="margin-bottom: 0.5rem;">
+                                {'<img src="https://ddragon.leagueoflegends.com/cdn/' + ddragon_version + '/img/champion/' + champ_key + '.png" width="50" style="border-radius: 8px; border: 2px solid ' + role_color + ';">' if champ_key else '<div style="width: 50px; height: 50px; background: ' + role_color + '30; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto; border: 2px solid ' + role_color + ';"><span style="color: ' + role_color + ';">?</span></div>'}
+                            </div>
+                            <div style="font-weight: 600; color: {role_color}; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                                {champion_name}
+                            </div>
+                            <div style="color: #f8fafc; font-size: 0.75rem; margin-bottom: 0.25rem;">
+                                <strong>{win_rate:.0f}%</strong> WR
+                            </div>
+                            <div style="color: #94a3b8; font-size: 0.7rem;">
+                                {wins}W-{games-wins}L ({games}g)
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Limit to show top 5 champions per role to avoid overcrowding
+                        if j >= 4:
+                            remaining_count = len(role_data) - 5
+                            if remaining_count > 0:
+                                st.markdown(f"""
+                                <div style="background: rgba(51, 65, 85, 0.2); 
+                                            border: 1px dashed {role_color}50; 
+                                            border-radius: 8px; 
+                                            padding: 0.5rem; 
+                                            text-align: center;
+                                            color: #94a3b8;
+                                            font-size: 0.75rem;">
+                                    +{remaining_count} more champion{'s' if remaining_count > 1 else ''}
+                                </div>
+                                """, unsafe_allow_html=True)
+                            break
                 else:
                     # No data for this role
                     st.markdown(f"""
-                    <div style="background: rgba(51, 65, 85, 0.3); 
-                                border-left: 4px solid {role_color}; 
+                    <div style="background: rgba(51, 65, 85, 0.2); 
+                                border: 1px dashed {role_color}50; 
                                 border-radius: 12px; 
-                                padding: 1.5rem; 
-                                margin: 2rem 0 1rem 0;
-                                text-align: center;">
-                        <h3 style="color: {role_color}; margin: 0 0 0.5rem 0;">{role} • {player_name}</h3>
-                        <p style="color: #94a3b8; margin: 0;">No champion data available</p>
+                                padding: 1rem; 
+                                text-align: center;
+                                color: #94a3b8;">
+                        <p style="margin: 0; font-size: 0.8rem;">No champions played</p>
                     </div>
                     """, unsafe_allow_html=True)
         
-        with tab2:
-            st.markdown("""
-            <div style="text-align: center; margin-bottom: 2rem;">
-                <h2 style="background: linear-gradient(135deg, #ef4444, #f87171); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
-                    Enemy Champion Analysis
-                </h2>
-                <p style="color: #94a3b8; font-size: 1.1rem;">Champions that opponents use against Caldya</p>
-            </div>
-            """, unsafe_allow_html=True)
+        # Summary statistics
+        st.header("📊 Scrims Summary")
+        
+        # Calculate overall stats
+        total_scrims = len(scrims_data)
+        team_wins = 0
+        team_games = 0
+        
+        for scrim in scrims_data:
+            participants = scrim.get("participants", [])
+            our_team_id = None
             
-            if "Opponent" in opponent_champion_data:
-                # Prepare opponent data
-                opponent_data = []
-                for champion, stats in opponent_champion_data["Opponent"].items():
-                    if stats["games"] > 0:
-                        win_rate = (stats["wins"] / stats["games"]) * 100
-                        opponent_data.append({
-                            "champion": champion,
-                            "games": stats["games"],
-                            "wins": stats["wins"],
-                            "losses": stats["games"] - stats["wins"],
-                            "win_rate": win_rate
-                        })
+            # Find our team ID
+            for participant in participants:
+                riot_name = participant.get("RIOT_ID_GAME_NAME", "")
+                clean_player_name = riot_name
+                for prefix in ["VLT ", "CLA "]:
+                    if riot_name.startswith(prefix):
+                        clean_player_name = riot_name[len(prefix):]
+                        break
                 
-                if opponent_data:
-                    # Sort by games played, then by win rate
-                    opponent_data.sort(key=lambda x: (x["games"], x["win_rate"]), reverse=True)
+                if clean_player_name in players:
+                    our_team_id = participant.get("TEAM")
+                    break
+            
+            # Count team wins
+            if our_team_id:
+                team_games += 1
+                for participant in participants:
+                    riot_name = participant.get("RIOT_ID_GAME_NAME", "")
+                    clean_player_name = riot_name
+                    for prefix in ["VLT ", "CLA "]:
+                        if riot_name.startswith(prefix):
+                            clean_player_name = riot_name[len(prefix):]
+                            break
                     
-                    # Summary stats cards
-                    total_unique_champs = len(opponent_data)
-                    high_winrate_champs = len([d for d in opponent_data if d["win_rate"] > 60])
-                    most_played = opponent_data[0] if opponent_data else None
-                    
-                    # Top stats
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        styled_metric("Unique Champions Faced", str(total_unique_champs))
-                    with col2:
-                        styled_metric("High Win Rate vs Caldya", f"{high_winrate_champs} champions", "> 60% win rate", "bad")
-                    with col3:
-                        if most_played:
-                            styled_metric("Most Played Against Us", most_played["champion"], f"{most_played['games']} games", "blue")
-                    
-                    # Threat Level Analysis
-                    st.subheader("🚨 Threat Level Analysis")
-                    
-                    # Categorize threats
-                    high_threat = [d for d in opponent_data if d["win_rate"] >= 70 and d["games"] >= 2]
-                    medium_threat = [d for d in opponent_data if 50 <= d["win_rate"] < 70 and d["games"] >= 2]
-                    low_threat = [d for d in opponent_data if d["win_rate"] < 50 and d["games"] >= 2]
-                    
-                    # High threat champions
-                    if high_threat:
-                        st.markdown("""
-                        <h4 style="color: #ef4444; margin: 1.5rem 0 1rem 0;">
-                            🔥 High Threat Champions (≥70% win rate, min 2 games)
-                        </h4>
-                        """, unsafe_allow_html=True)
-                        
-                        create_threat_layout_with_separators(high_threat, "#ef4444", champion_data, champ_mapping, ddragon_version)
-                    
-                    # Medium threat champions  
-                    if medium_threat:
-                        st.markdown("""
-                        <h4 style="color: #f59e0b; margin: 1.5rem 0 1rem 0;">
-                            ⚠️ Medium Threat Champions (50-69% win rate, min 2 games)
-                        </h4>
-                        """, unsafe_allow_html=True)
-                        
-                        create_threat_layout_with_separators(medium_threat, "#f59e0b", champion_data, champ_mapping, ddragon_version)
-                    
-                    # Low threat champions
-                    if low_threat:
-                        st.markdown("""
-                        <h4 style="color: #10b981; margin: 1.5rem 0 1rem 0;">
-                            ✅ Favorable Matchups (<50% win rate vs us, min 2 games)
-                        </h4>
-                        """, unsafe_allow_html=True)
-                        
-                        create_threat_layout_with_separators(low_threat, "#10b981", champion_data, champ_mapping, ddragon_version)
-                    
-                    # Detailed table for all opponents
-                    with st.expander("📊 Complete Opponent Champion Statistics", expanded=False):
-                        create_detailed_opponent_table(opponent_data, champion_data, champ_mapping, ddragon_version)
-            else:
-                st.info("No opponent champion data available")
+                    if (clean_player_name in players and 
+                        participant.get("TEAM") == our_team_id and 
+                        participant.get("WIN") == "Win"):
+                        team_wins += 1
+                        break
+        
+        team_win_rate = (team_wins / team_games * 100) if team_games > 0 else 0
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            styled_metric("Total Scrims", str(total_scrims))
+        with col2:
+            styled_metric("Team Record", f"{team_wins}W - {team_games - team_wins}L")
+        with col3:
+            styled_metric("Team Win Rate", f"{team_win_rate:.1f}%", delta_color="blue")
 
 # Logout button at the end of the application
 st.markdown("---")
