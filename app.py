@@ -1756,7 +1756,7 @@ if main_page == "Officials":
                     st.info("No opponent champion data available")
 
 elif main_page == "Scrims":
-    st.title("Scrims Champion Analysis")
+    st.title("Scrims Analysis")
     
     # Load scrims data
     scrims_data = load_scrims()
@@ -1782,207 +1782,196 @@ elif main_page == "Scrims":
             "Support": "#8b5cf6"   # Purple
         }
         
-        # Collect champion data for players
-        team_champion_data = {}
+        # Create tabs for different views
+        tab1, tab2 = st.tabs(["Champion Analysis", "Game Browser"])
         
-        # Process each scrim
-        for scrim in scrims_data:
-            participants = scrim.get("participants", [])
+        with tab1:
+            # Collect champion data for players
+            team_champion_data = {}
             
-            # Find team ID by looking for our players
-            team_id = None
-            for participant in participants:
-                riot_name = participant.get("RIOT_ID_GAME_NAME", "")
-                # Extract player name without prefix
-                clean_player_name = riot_name
-                for prefix in ["VLT ", "CLA "]:
-                    if riot_name.startswith(prefix):
-                        clean_player_name = riot_name[len(prefix):]
-                        break
+            # Process each scrim
+            for scrim in scrims_data:
+                participants = scrim.get("participants", [])
                 
-                if clean_player_name in players:
-                    team_id = participant.get("TEAM")
-                    break
-            
-            # Process each participant
-            for participant in participants:
-                riot_name = participant.get("RIOT_ID_GAME_NAME", "")
-                champion = participant.get("SKIN", "")
-                win_status = participant.get("WIN", "")
-                participant_team_id = participant.get("TEAM")
-                
-                # Extract player name without prefix
-                clean_player_name = riot_name
-                for prefix in ["VLT ", "CLA "]:
-                    if riot_name.startswith(prefix):
-                        clean_player_name = riot_name[len(prefix):]
-                        break
-                
-                # Check if this is one of our players
-                if clean_player_name in players and participant_team_id == team_id:
-                    role = players[clean_player_name]
-                    
-                    # Initialize role data if needed
-                    if role not in team_champion_data:
-                        team_champion_data[role] = {}
-                    if champion not in team_champion_data[role]:
-                        team_champion_data[role][champion] = {"wins": 0, "games": 0}
-                    
-                    # Count the game
-                    team_champion_data[role][champion]["games"] += 1
-                    if win_status == "Win":
-                        team_champion_data[role][champion]["wins"] += 1
-        
-        # Display results
-        st.markdown("""
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <h2 style="background: linear-gradient(135deg, #3b82f6, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
-                Champion Performance by Role
-            </h2>
-            <p style="color: #94a3b8; font-size: 1.1rem;">Analyzing champion win rates for each team member in scrims</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Create 5 columns layout for roles
-        roles = ["Top", "Jungle", "Mid", "ADC", "Support"]
-        cols = st.columns(5)
-        
-        for i, role in enumerate(roles):
-            with cols[i]:
-                player_name = [k for k, v in players.items() if v == role][0]
-                role_color = role_colors.get(role, "#3b82f6")
-                
-                # Role header
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, {role_color}20, {role_color}10); 
-                            border: 2px solid {role_color}; 
-                            border-radius: 16px; 
-                            padding: 1rem; 
-                            margin-bottom: 1rem;
-                            text-align: center;
-                            backdrop-filter: blur(10px);
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            justify-content: center;">
-                    <h3 style="color: {role_color}; margin: 0; font-size: 1.4rem; font-weight: 700; text-align: center; width: 100%;">
-                        {role}
-                    </h3>
-                    <p style="color: #94a3b8; margin: 0.25rem 0 0 0; font-size: 0.9rem; text-align: center; width: 100%;">
-                        {player_name}
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Champions for this role
-                if role in team_champion_data and team_champion_data[role]:
-                    # Prepare data for this role
-                    role_data = []
-                    for champion, stats in team_champion_data[role].items():
-                        if stats["games"] > 0:
-                            win_rate = (stats["wins"] / stats["games"]) * 100
-                            role_data.append({
-                                "champion": champion,
-                                "games": stats["games"],
-                                "wins": stats["wins"],
-                                "losses": stats["games"] - stats["wins"],
-                                "win_rate": win_rate
-                            })
-                    
-                    # Sort by games played, then by win rate
-                    role_data.sort(key=lambda x: (x["games"], x["win_rate"]), reverse=True)
-                    
-                    # Display champions in compact cards
-                    for j, champ_data in enumerate(role_data):
-                        champion_name = champ_data["champion"]
-                        win_rate = champ_data["win_rate"]
-                        games = champ_data["games"]
-                        wins = champ_data["wins"]
-                        
-                        # Get champion image
-                        champ_key = find_champion_key(champion_name, champion_data, champ_mapping)
-                        
-                        # Champion card with role color theme
-                        st.markdown(f"""
-                        <div style="background: rgba(51, 65, 85, 0.4); 
-                                    border: 1px solid {role_color}50; 
-                                    border-radius: 12px; 
-                                    padding: 0.75rem; 
-                                    margin-bottom: 0.75rem;
-                                    text-align: center;
-                                    transition: all 0.3s ease;">
-                            <div style="margin-bottom: 0.5rem;">
-                                {'<img src="https://ddragon.leagueoflegends.com/cdn/' + ddragon_version + '/img/champion/' + champ_key + '.png" width="50" style="border-radius: 8px; border: 2px solid ' + role_color + ';">' if champ_key else '<div style="width: 50px; height: 50px; background: ' + role_color + '30; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto; border: 2px solid ' + role_color + ';"><span style="color: ' + role_color + ';">?</span></div>'}
-                            </div>
-                            <div style="font-weight: 600; color: {role_color}; font-size: 0.85rem; margin-bottom: 0.25rem;">
-                                {champion_name}
-                            </div>
-                            <div style="color: #f8fafc; font-size: 0.75rem; margin-bottom: 0.25rem;">
-                                <strong>{win_rate:.0f}%</strong> WR
-                            </div>
-                            <div style="color: #94a3b8; font-size: 0.7rem;">
-                                {wins}W-{games-wins}L ({games}g)
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Limit to show top 5 champions per role to avoid overcrowding
-                        if j >= 4:
-                            remaining_count = len(role_data) - 5
-                            if remaining_count > 0:
-                                st.markdown(f"""
-                                <div style="background: rgba(51, 65, 85, 0.2); 
-                                            border: 1px dashed {role_color}50; 
-                                            border-radius: 8px; 
-                                            padding: 0.5rem; 
-                                            text-align: center;
-                                            color: #94a3b8;
-                                            font-size: 0.75rem;">
-                                    +{remaining_count} more champion{'s' if remaining_count > 1 else ''}
-                                </div>
-                                """, unsafe_allow_html=True)
+                # Find team ID by looking for our players
+                team_id = None
+                for participant in participants:
+                    riot_name = participant.get("RIOT_ID_GAME_NAME", "")
+                    # Extract player name without prefix
+                    clean_player_name = riot_name
+                    for prefix in ["VLT ", "CLA "]:
+                        if riot_name.startswith(prefix):
+                            clean_player_name = riot_name[len(prefix):]
                             break
-                else:
-                    # No data for this role
+                    
+                    if clean_player_name in players:
+                        team_id = participant.get("TEAM")
+                        break
+                
+                # Process each participant
+                for participant in participants:
+                    riot_name = participant.get("RIOT_ID_GAME_NAME", "")
+                    champion = participant.get("SKIN", "")
+                    win_status = participant.get("WIN", "")
+                    participant_team_id = participant.get("TEAM")
+                    
+                    # Extract player name without prefix
+                    clean_player_name = riot_name
+                    for prefix in ["VLT ", "CLA "]:
+                        if riot_name.startswith(prefix):
+                            clean_player_name = riot_name[len(prefix):]
+                            break
+                    
+                    # Check if this is one of our players
+                    if clean_player_name in players and participant_team_id == team_id:
+                        role = players[clean_player_name]
+                        
+                        # Initialize role data if needed
+                        if role not in team_champion_data:
+                            team_champion_data[role] = {}
+                        if champion not in team_champion_data[role]:
+                            team_champion_data[role][champion] = {"wins": 0, "games": 0}
+                        
+                        # Count the game
+                        team_champion_data[role][champion]["games"] += 1
+                        if win_status == "Win":
+                            team_champion_data[role][champion]["wins"] += 1
+            
+            # Display results
+            st.markdown("""
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <h2 style="background: linear-gradient(135deg, #3b82f6, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
+                    Champion Performance by Role
+                </h2>
+                <p style="color: #94a3b8; font-size: 1.1rem;">Analyzing champion win rates for each team member in scrims</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Create 5 columns layout for roles
+            roles = ["Top", "Jungle", "Mid", "ADC", "Support"]
+            cols = st.columns(5)
+            
+            for i, role in enumerate(roles):
+                with cols[i]:
+                    player_name = [k for k, v in players.items() if v == role][0]
+                    role_color = role_colors.get(role, "#3b82f6")
+                    
+                    # Role header
                     st.markdown(f"""
-                    <div style="background: rgba(51, 65, 85, 0.2); 
-                                border: 1px dashed {role_color}50; 
-                                border-radius: 12px; 
+                    <div style="background: linear-gradient(135deg, {role_color}20, {role_color}10); 
+                                border: 2px solid {role_color}; 
+                                border-radius: 16px; 
                                 padding: 1rem; 
+                                margin-bottom: 1rem;
                                 text-align: center;
-                                color: #94a3b8;">
-                        <p style="margin: 0; font-size: 0.8rem;">No champions played</p>
+                                backdrop-filter: blur(10px);
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;">
+                        <h3 style="color: {role_color}; margin: 0; font-size: 1.4rem; font-weight: 700; text-align: center; width: 100%;">
+                            {role}
+                        </h3>
+                        <p style="color: #94a3b8; margin: 0.25rem 0 0 0; font-size: 0.9rem; text-align: center; width: 100%;">
+                            {player_name}
+                        </p>
                     </div>
                     """, unsafe_allow_html=True)
-        
-        # Summary statistics
-        st.header("📊 Scrims Summary")
-        
-        # Calculate overall stats
-        total_scrims = len(scrims_data)
-        team_wins = 0
-        team_games = 0
-        
-        for scrim in scrims_data:
-            participants = scrim.get("participants", [])
-            our_team_id = None
+                    
+                    # Champions for this role
+                    if role in team_champion_data and team_champion_data[role]:
+                        # Prepare data for this role
+                        role_data = []
+                        for champion, stats in team_champion_data[role].items():
+                            if stats["games"] > 0:
+                                win_rate = (stats["wins"] / stats["games"]) * 100
+                                role_data.append({
+                                    "champion": champion,
+                                    "games": stats["games"],
+                                    "wins": stats["wins"],
+                                    "losses": stats["games"] - stats["wins"],
+                                    "win_rate": win_rate
+                                })
+                        
+                        # Sort by games played, then by win rate
+                        role_data.sort(key=lambda x: (x["games"], x["win_rate"]), reverse=True)
+                        
+                        # Display champions in compact cards
+                        for j, champ_data in enumerate(role_data):
+                            champion_name = champ_data["champion"]
+                            win_rate = champ_data["win_rate"]
+                            games = champ_data["games"]
+                            wins = champ_data["wins"]
+                            
+                            # Get champion image
+                            champ_key = find_champion_key(champion_name, champion_data, champ_mapping)
+                            
+                            # Champion card with role color theme
+                            st.markdown(f"""
+                            <div style="background: rgba(51, 65, 85, 0.4); 
+                                        border: 1px solid {role_color}50; 
+                                        border-radius: 12px; 
+                                        padding: 0.75rem; 
+                                        margin-bottom: 0.75rem;
+                                        text-align: center;
+                                        transition: all 0.3s ease;">
+                                <div style="margin-bottom: 0.5rem;">
+                                    {'<img src="https://ddragon.leagueoflegends.com/cdn/' + ddragon_version + '/img/champion/' + champ_key + '.png" width="50" style="border-radius: 8px; border: 2px solid ' + role_color + ';">' if champ_key else '<div style="width: 50px; height: 50px; background: ' + role_color + '30; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto; border: 2px solid ' + role_color + ';"><span style="color: ' + role_color + ';">?</span></div>'}
+                                </div>
+                                <div style="font-weight: 600; color: {role_color}; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                                    {champion_name}
+                                </div>
+                                <div style="color: #f8fafc; font-size: 0.75rem; margin-bottom: 0.25rem;">
+                                    <strong>{win_rate:.0f}%</strong> WR
+                                </div>
+                                <div style="color: #94a3b8; font-size: 0.7rem;">
+                                    {wins}W-{games-wins}L ({games}g)
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Limit to show top 5 champions per role to avoid overcrowding
+                            if j >= 4:
+                                remaining_count = len(role_data) - 5
+                                if remaining_count > 0:
+                                    st.markdown(f"""
+                                    <div style="background: rgba(51, 65, 85, 0.2); 
+                                                border: 1px dashed {role_color}50; 
+                                                border-radius: 8px; 
+                                                padding: 0.5rem; 
+                                                text-align: center;
+                                                color: #94a3b8;
+                                                font-size: 0.75rem;">
+                                        +{remaining_count} more champion{'s' if remaining_count > 1 else ''}
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                break
+                    else:
+                        # No data for this role
+                        st.markdown(f"""
+                        <div style="background: rgba(51, 65, 85, 0.2); 
+                                    border: 1px dashed {role_color}50; 
+                                    border-radius: 12px; 
+                                    padding: 1rem; 
+                                    text-align: center;
+                                    color: #94a3b8;">
+                            <p style="margin: 0; font-size: 0.8rem;">No champions played</p>
+                        </div>
+                        """, unsafe_allow_html=True)
             
-            # Find our team ID
-            for participant in participants:
-                riot_name = participant.get("RIOT_ID_GAME_NAME", "")
-                clean_player_name = riot_name
-                for prefix in ["VLT ", "CLA "]:
-                    if riot_name.startswith(prefix):
-                        clean_player_name = riot_name[len(prefix):]
-                        break
+            # Summary statistics
+            st.header("📊 Scrims Summary")
+            
+            # Calculate overall stats
+            total_scrims = len(scrims_data)
+            team_wins = 0
+            team_games = 0
+            
+            for scrim in scrims_data:
+                participants = scrim.get("participants", [])
+                our_team_id = None
                 
-                if clean_player_name in players:
-                    our_team_id = participant.get("TEAM")
-                    break
-            
-            # Count team wins
-            if our_team_id:
-                team_games += 1
+                # Find our team ID
                 for participant in participants:
                     riot_name = participant.get("RIOT_ID_GAME_NAME", "")
                     clean_player_name = riot_name
@@ -1991,22 +1980,260 @@ elif main_page == "Scrims":
                             clean_player_name = riot_name[len(prefix):]
                             break
                     
-                    if (clean_player_name in players and 
-                        participant.get("TEAM") == our_team_id and 
-                        participant.get("WIN") == "Win"):
-                        team_wins += 1
+                    if clean_player_name in players:
+                        our_team_id = participant.get("TEAM")
                         break
+                
+                # Count team wins
+                if our_team_id:
+                    team_games += 1
+                    for participant in participants:
+                        riot_name = participant.get("RIOT_ID_GAME_NAME", "")
+                        clean_player_name = riot_name
+                        for prefix in ["VLT ", "CLA "]:
+                            if riot_name.startswith(prefix):
+                                clean_player_name = riot_name[len(prefix):]
+                                break
+                        
+                        if (clean_player_name in players and 
+                            participant.get("TEAM") == our_team_id and 
+                            participant.get("WIN") == "Win"):
+                            team_wins += 1
+                            break
+            
+            team_win_rate = (team_wins / team_games * 100) if team_games > 0 else 0
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                styled_metric("Total Scrims", str(total_scrims))
+            with col2:
+                styled_metric("Team Record", f"{team_wins}W - {team_games - team_wins}L")
+            with col3:
+                styled_metric("Team Win Rate", f"{team_win_rate:.1f}%", delta_color="blue")
         
-        team_win_rate = (team_wins / team_games * 100) if team_games > 0 else 0
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            styled_metric("Total Scrims", str(total_scrims))
-        with col2:
-            styled_metric("Team Record", f"{team_wins}W - {team_games - team_wins}L")
-        with col3:
-            styled_metric("Team Win Rate", f"{team_win_rate:.1f}%", delta_color="blue")
+        with tab2:
+            st.markdown("""
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <h2 style="background: linear-gradient(135deg, #3b82f6, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem;">
+                    Scrim Games Browser
+                </h2>
+                <p style="color: #94a3b8; font-size: 1.1rem;">Browse all scrim games with draft information and filtering</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Prepare game data for browsing
+            scrim_games = []
+            all_our_champions = set()
+            all_enemy_champions = set()
+            
+            for scrim_index, scrim in enumerate(scrims_data):
+                participants = scrim.get("participants", [])
+                
+                # Find our team ID
+                our_team_id = None
+                for participant in participants:
+                    riot_name = participant.get("RIOT_ID_GAME_NAME", "")
+                    clean_player_name = riot_name
+                    for prefix in ["VLT ", "CLA "]:
+                        if riot_name.startswith(prefix):
+                            clean_player_name = riot_name[len(prefix):]
+                            break
+                    
+                    if clean_player_name in players:
+                        our_team_id = participant.get("TEAM")
+                        break
+                
+                if our_team_id is None:
+                    continue
+                
+                # Separate teams
+                our_team = []
+                enemy_team = []
+                game_result = None
+                
+                for participant in participants:
+                    riot_name = participant.get("RIOT_ID_GAME_NAME", "")
+                    champion = participant.get("SKIN", "Unknown")
+                    win_status = participant.get("WIN", "")
+                    team_id = participant.get("TEAM")
+                    
+                    clean_player_name = riot_name
+                    for prefix in ["VLT ", "CLA "]:
+                        if riot_name.startswith(prefix):
+                            clean_player_name = riot_name[len(prefix):]
+                            break
+                    
+                    participant_data = {
+                        "player": clean_player_name,
+                        "champion": champion,
+                        "full_name": riot_name
+                    }
+                    
+                    if team_id == our_team_id:
+                        our_team.append(participant_data)
+                        all_our_champions.add(champion)
+                        if win_status == "Win":
+                            game_result = "WIN"
+                        elif win_status == "Fail":
+                            game_result = "LOSS"
+                    else:
+                        enemy_team.append(participant_data)
+                        all_enemy_champions.add(champion)
+                
+                # Determine side (assuming team 100 is blue, 200 is red)
+                our_side = "BLUE" if our_team_id == 100 else "RED"
+                enemy_side = "RED" if our_team_id == 100 else "BLUE"
+                
+                if len(our_team) == 5 and len(enemy_team) == 5:
+                    scrim_games.append({
+                        "index": scrim_index,
+                        "our_team": our_team,
+                        "enemy_team": enemy_team,
+                        "result": game_result,
+                        "our_side": our_side,
+                        "enemy_side": enemy_side
+                    })
+            
+            if not scrim_games:
+                st.warning("No valid scrim games found with complete team data.")
+            else:
+                # Filtering section
+                st.subheader("🔍 Filter Games")
+                
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    result_filter = st.radio("Result", ["All", "WIN", "LOSS"], key="scrim_result_filter")
+                    
+                with col2:
+                    side_filter = st.radio("Our Side", ["All", "BLUE", "RED"], key="scrim_side_filter")
+                
+                with col3:
+                    our_champions_list = ["All"] + sorted(list(all_our_champions))
+                    our_champion_filter = st.selectbox("Our Champion", our_champions_list, key="scrim_our_champ")
+                
+                with col4:
+                    enemy_champions_list = ["All"] + sorted(list(all_enemy_champions))
+                    enemy_champion_filter = st.selectbox("Enemy Champion", enemy_champions_list, key="scrim_enemy_champ")
+                
+                # Apply filters
+                filtered_games = scrim_games.copy()
+                
+                if result_filter != "All":
+                    filtered_games = [g for g in filtered_games if g["result"] == result_filter]
+                
+                if side_filter != "All":
+                    filtered_games = [g for g in filtered_games if g["our_side"] == side_filter]
+                
+                if our_champion_filter != "All":
+                    filtered_games = [g for g in filtered_games if any(p["champion"] == our_champion_filter for p in g["our_team"])]
+                
+                if enemy_champion_filter != "All":
+                    filtered_games = [g for g in filtered_games if any(p["champion"] == enemy_champion_filter for p in g["enemy_team"])]
+                
+                # Display filtered results
+                st.subheader(f"📋 Games ({len(filtered_games)} games)")
+                
+                if not filtered_games:
+                    st.warning("No games match the selected filters.")
+                else:
+                    # Display games
+                    for game in filtered_games:
+                        result_color = "#10b981" if game["result"] == "WIN" else "#ef4444"
+                        
+                        with st.container():
+                            # Game header
+                            st.markdown(f"""
+                            <div style="background: linear-gradient(135deg, {result_color}20, {result_color}10); 
+                                        border-left: 4px solid {result_color}; 
+                                        border-radius: 12px; 
+                                        padding: 1rem; 
+                                        margin: 1rem 0;
+                                        backdrop-filter: blur(10px);">
+                                <h4 style="color: {result_color}; margin: 0; display: flex; align-items: center; gap: 1rem;">
+                                    <span>{game["result"]}</span>
+                                    <span style="color: #94a3b8; font-size: 1rem; font-weight: 400;">
+                                        • Our Side: {game["our_side"]} • Game #{game["index"] + 1}
+                                    </span>
+                                </h4>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Team drafts
+                            col1, col_sep, col2 = st.columns([5, 1, 5])
+                            
+                            with col1:
+                                st.markdown(f"""
+                                <h5 style="color: #3b82f6; margin-bottom: 1rem; text-align: center;">
+                                    Caldya ({game["our_side"]} Side)
+                                </h5>
+                                """, unsafe_allow_html=True)
+                                
+                                # Our team champions
+                                for player_data in game["our_team"]:
+                                    champion = player_data["champion"]
+                                    player = player_data["player"]
+                                    champ_key = find_champion_key(champion, champion_data, champ_mapping)
+                                    
+                                    # Get role for player
+                                    role = players.get(player, "Unknown")
+                                    role_color = role_colors.get(role, "#94a3b8")
+                                    
+                                    st.markdown(f"""
+                                    <div style="display: flex; align-items: center; gap: 1rem; 
+                                                background: rgba(51, 65, 85, 0.3); 
+                                                border-radius: 8px; 
+                                                padding: 0.75rem; 
+                                                margin-bottom: 0.5rem;
+                                                border-left: 3px solid {role_color};">
+                                        {'<img src="https://ddragon.leagueoflegends.com/cdn/' + ddragon_version + '/img/champion/' + champ_key + '.png" width="40" style="border-radius: 6px;">' if champ_key else '<div style="width: 40px; height: 40px; background: #475569; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><span style="color: white;">?</span></div>'}
+                                        <div>
+                                            <div style="font-weight: 600; color: #f8fafc;">{champion}</div>
+                                            <div style="color: {role_color}; font-size: 0.8rem;">{player} ({role})</div>
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                            
+                            with col_sep:
+                                st.markdown(f"""
+                                <div style="text-align: center; margin-top: 3rem;">
+                                    <div style="font-size: 2rem; color: {result_color};">
+                                        {"⚔️" if game["result"] == "WIN" else "💀"}
+                                    </div>
+                                    <div style="color: #94a3b8; font-size: 0.8rem; margin-top: 0.5rem;">
+                                        VS
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            
+                            with col2:
+                                st.markdown(f"""
+                                <h5 style="color: #ef4444; margin-bottom: 1rem; text-align: center;">
+                                    Enemy ({game["enemy_side"]} Side)
+                                </h5>
+                                """, unsafe_allow_html=True)
+                                
+                                # Enemy team champions
+                                for player_data in game["enemy_team"]:
+                                    champion = player_data["champion"]
+                                    player = player_data["player"]
+                                    champ_key = find_champion_key(champion, champion_data, champ_mapping)
+                                    
+                                    st.markdown(f"""
+                                    <div style="display: flex; align-items: center; gap: 1rem; 
+                                                background: rgba(51, 65, 85, 0.3); 
+                                                border-radius: 8px; 
+                                                padding: 0.75rem; 
+                                                margin-bottom: 0.5rem;
+                                                border-left: 3px solid #ef4444;">
+                                        {'<img src="https://ddragon.leagueoflegends.com/cdn/' + ddragon_version + '/img/champion/' + champ_key + '.png" width="40" style="border-radius: 6px;">' if champ_key else '<div style="width: 40px; height: 40px; background: #475569; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><span style="color: white;">?</span></div>'}
+                                        <div>
+                                            <div style="font-weight: 600; color: #f8fafc;">{champion}</div>
+                                            <div style="color: #ef4444; font-size: 0.8rem;">{player}</div>
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
 
 # Logout button at the end of the application
 st.markdown("---")
