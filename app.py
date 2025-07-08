@@ -2025,7 +2025,7 @@ elif main_page == "Scrims":
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Champions for this role - EXACTLY AS ORIGINAL
+                    # Champions for this role - Enhanced with full display option
                     if role in team_champion_data and team_champion_data[role]:
                         # Prepare data for this role
                         role_data = []
@@ -2043,8 +2043,17 @@ elif main_page == "Scrims":
                         # Sort by games played, then by win rate
                         role_data.sort(key=lambda x: (x["games"], x["win_rate"]), reverse=True)
                         
-                        # Display champions in compact cards - EXACTLY AS ORIGINAL
-                        for j, champ_data in enumerate(role_data):
+                        # Initialize session state for this role's expansion
+                        expand_key = f"expand_{role.lower()}_champions"
+                        if expand_key not in st.session_state:
+                            st.session_state[expand_key] = False
+                        
+                        # Determine how many champions to show
+                        show_all = st.session_state[expand_key]
+                        champions_to_show = role_data if show_all else role_data[:5]
+                        
+                        # Display champions in compact cards
+                        for j, champ_data in enumerate(champions_to_show):
                             champion_name = champ_data["champion"]
                             win_rate = champ_data["win_rate"]
                             games = champ_data["games"]
@@ -2076,23 +2085,16 @@ elif main_page == "Scrims":
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
+                        
+                        # Show expand/collapse button if there are more than 5 champions
+                        if len(role_data) > 5:
+                            remaining_count = len(role_data) - 5
+                            button_text = "Show Less" if show_all else f"Show {remaining_count} More"
+                            button_icon = "▲" if show_all else "▼"
                             
-                            # Limit to show top 5 champions per role to avoid overcrowding
-                            if j >= 4:
-                                remaining_count = len(role_data) - 5
-                                if remaining_count > 0:
-                                    st.markdown(f"""
-                                    <div style="background: rgba(51, 65, 85, 0.2); 
-                                                border: 1px dashed {role_color}50; 
-                                                border-radius: 8px; 
-                                                padding: 0.5rem; 
-                                                text-align: center;
-                                                color: #94a3b8;
-                                                font-size: 0.75rem;">
-                                        +{remaining_count} more champion{'s' if remaining_count > 1 else ''}
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                break
+                            if st.button(f"{button_icon} {button_text}", key=f"toggle_{role.lower()}_champions", use_container_width=True):
+                                st.session_state[expand_key] = not st.session_state[expand_key]
+                                st.rerun()
                     else:
                         # No data for this role
                         st.markdown(f"""
